@@ -29,8 +29,8 @@
 
 ## 👋 项目简介
 
-ClashMenu 是基于 [ClashBar](https://github.com/Sitoi/ClashBar) 的一款面向 macOS 的原生菜单栏代理客户端，基于 `mihomo` Core，聚焦于「轻量入口、稳定运行、可观测运维」。  
-在不打开复杂主窗口的前提下，你可以在菜单栏中完成配置管理、节点切换、规则刷新、连接排障与系统代理控制。 ✨
+ClashMenu 是以macOS上裸核运行mihomo为目标的极简菜单栏客户端，基于 [ClashBar](https://github.com/Sitoi/ClashBar) 。  
+在不打开复杂主窗口的前提下，你可以在菜单栏中完成配置管理、系统代理控制等常见操作，也可以打开zashboard获取详细信息和复杂操作。 ✨
 
 ## 🤖 项目说明
 
@@ -141,7 +141,7 @@ sudo xattr -r -d com.apple.quarantine /Applications/ClashMenu.app
 
 ## 🙏 致谢
 
-- 感谢 [ClashBar]([https://openai.com/codex/](https://github.com/Sitoi/ClashBar)) 提供了原始的项目能力
+- 感谢 [ClashBar](https://github.com/Sitoi/ClashBar) 提供了原始的项目能力
 - 感谢 [OpenAI Codex](https://openai.com/codex/) 在需求拆解、工程实现与文档优化中的持续协作。 🤝
 - 感谢 [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) 提供稳定可靠的 Core 能力。
 
