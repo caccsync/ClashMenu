@@ -319,7 +319,7 @@ extension MenuBarRoot {
 
     func logSourcePresentation(_ source: AppLogSource) -> (label: String, color: Color) {
         switch source {
-        case .clashbar:
+        case .clashmenu:
             (tr("ui.log_source.clashbar"), nativeSecondaryLabel)
         case .mihomo:
             (tr("ui.log_source.mihomo"), nativeAccent.opacity(T.Opacity.solid))

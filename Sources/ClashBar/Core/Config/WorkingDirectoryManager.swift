@@ -8,6 +8,10 @@ struct WorkingDirectoryManager {
     }
 
     var rootDirectoryURL: URL {
+        self.homeDirectory.appendingPathComponent("Library/Application Support/clashmenu", isDirectory: true)
+    }
+
+    var legacyRootDirectoryURL: URL {
         self.homeDirectory.appendingPathComponent("Library/Application Support/clashbar", isDirectory: true)
     }
 
@@ -27,16 +31,22 @@ struct WorkingDirectoryManager {
         self.rootDirectoryURL.appendingPathComponent("core", isDirectory: true)
     }
 
+    var uiDirectoryURL: URL {
+        self.rootDirectoryURL.appendingPathComponent("ui", isDirectory: true)
+    }
+
     var managedMihomoBinaryURL: URL {
         self.coreDirectoryURL.appendingPathComponent("mihomo", isDirectory: false)
     }
 
     func bootstrapDirectories(fileManager: FileManager = .default) throws {
+        try self.migrateLegacyRootIfNeeded(fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.rootDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.configDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.logsDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.stateDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.coreDirectoryURL, fileManager: fileManager)
+        try self.createDirectoryIfNeeded(self.uiDirectoryURL, fileManager: fileManager)
     }
 
     func normalizeAndValidateWithinRoot(_ url: URL, mustBeDirectory: Bool? = nil) throws -> URL {
@@ -44,16 +54,16 @@ struct WorkingDirectoryManager {
         let root = self.rootDirectoryURL.standardizedFileURL.resolvingSymlinksInPath()
         guard self.isDescendantOrEqual(standardized, parent: root) else {
             throw NSError(
-                domain: "ClashBar.PathSecurity",
+                domain: "ClashMenu.PathSecurity",
                 code: 403,
-                userInfo: [NSLocalizedDescriptionKey: "Path escapes ClashBar working directory: \(standardized.path)"])
+                userInfo: [NSLocalizedDescriptionKey: "Path escapes ClashMenu working directory: \(standardized.path)"])
         }
 
         if let mustBeDirectory {
             let values = try standardized.resourceValues(forKeys: [.isDirectoryKey])
             if values.isDirectory != mustBeDirectory {
                 throw NSError(
-                    domain: "ClashBar.PathSecurity",
+                    domain: "ClashMenu.PathSecurity",
                     code: 400,
                     userInfo: [NSLocalizedDescriptionKey: mustBeDirectory
                         ? "Expected directory path: \(standardized.path)"
@@ -69,7 +79,7 @@ struct WorkingDirectoryManager {
         if fileManager.fileExists(atPath: url.path, isDirectory: &isDir) {
             if !isDir.boolValue {
                 throw NSError(
-                    domain: "ClashBar.PathSecurity",
+                    domain: "ClashMenu.PathSecurity",
                     code: 409,
                     userInfo: [NSLocalizedDescriptionKey: "Expected directory but found file: \(url.path)"])
             }
@@ -77,6 +87,19 @@ struct WorkingDirectoryManager {
         }
 
         try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+
+    private func migrateLegacyRootIfNeeded(fileManager: FileManager) throws {
+        guard !fileManager.fileExists(atPath: self.rootDirectoryURL.path) else { return }
+
+        var legacyIsDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: self.legacyRootDirectoryURL.path, isDirectory: &legacyIsDirectory),
+              legacyIsDirectory.boolValue
+        else {
+            return
+        }
+
+        try fileManager.copyItem(at: self.legacyRootDirectoryURL, to: self.rootDirectoryURL)
     }
 
     private func isDescendantOrEqual(_ child: URL, parent: URL) -> Bool {

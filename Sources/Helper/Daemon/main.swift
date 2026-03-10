@@ -204,7 +204,7 @@ private final class SystemProxyConfigurator {
     }
 
     private func makePreferences() throws -> SCPreferences {
-        guard let preferences = SCPreferencesCreate(nil, "com.clashbar.helper" as CFString, nil) else {
+        guard let preferences = SCPreferencesCreate(nil, "com.clashmenu.helper" as CFString, nil) else {
             throw ProxyHelperError.missingPreferences
         }
         return preferences
@@ -464,7 +464,7 @@ private final class ProxyHelperListenerDelegate: NSObject, NSXPCListenerDelegate
 }
 
 @main
-private struct ClashBarProxyHelperMain {
+private struct ClashMenuProxyHelperMain {
     static func main() {
         let delegate = ProxyHelperListenerDelegate()
         let listener = NSXPCListener(machServiceName: ProxyHelperConstants.machServiceName)

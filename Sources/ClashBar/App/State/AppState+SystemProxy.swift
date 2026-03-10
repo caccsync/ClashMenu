@@ -59,8 +59,9 @@ extension AppState {
     func ensureSystemProxyConsistencyOnFirstLaunchIfNeeded() async {
         guard !didCheckSystemProxyConsistencyOnLaunch else { return }
         guard isRuntimeRunning else { return }
-        guard isSystemProxyEnabled else {
+        guard desiredSystemProxyEnabled else {
             didCheckSystemProxyConsistencyOnLaunch = true
+            isSystemProxyEnabled = false
             return
         }
 
@@ -74,6 +75,7 @@ extension AppState {
                     message: tr("log.system_proxy.startup_repaired", target.host, target.ports.primaryPort ?? 0))
             }
 
+            self.isSystemProxyEnabled = true
             didCheckSystemProxyConsistencyOnLaunch = true
             await refreshSystemProxyStatus()
         } catch {

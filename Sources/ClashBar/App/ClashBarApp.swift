@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 @main
-struct ClashBarApp: App {
-    @NSApplicationDelegateAdaptor(ClashBarAppDelegate.self) private var appDelegate
+struct ClashMenuApp: App {
+    @NSApplicationDelegateAdaptor(ClashMenuAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         Settings {
@@ -25,10 +25,10 @@ struct ClashBarApp: App {
 
                 Divider()
 
-                Button(self.appDelegate.appState.isTunEnabled ? self.tr("ui.action.disable_tun") : self
+                Button(self.appDelegate.appState.desiredTunEnabled ? self.tr("ui.action.disable_tun") : self
                     .tr("ui.action.enable_tun"))
                 {
-                    let toggled = !self.appDelegate.appState.isTunEnabled
+                    let toggled = !self.appDelegate.appState.desiredTunEnabled
                     Task { await self.appDelegate.appState.toggleTunMode(toggled) }
                 }
                 .keyboardShortcut("T", modifiers: [.command, .option])
@@ -93,16 +93,16 @@ struct ClashBarApp: App {
 }
 
 @MainActor
-final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
+final class ClashMenuAppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
-    private var statusItemController: StatusItemController?
+    private var statusItemController: NativeStatusMenuController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let image = BrandIcon.image {
             NSApp.applicationIconImage = image
         }
         NSApp.setActivationPolicy(.accessory)
-        self.statusItemController = StatusItemController(appState: self.appState)
+        self.statusItemController = NativeStatusMenuController(appState: self.appState)
         self.appState.presentInitialNoCoreSetupGuideIfNeeded()
     }
 

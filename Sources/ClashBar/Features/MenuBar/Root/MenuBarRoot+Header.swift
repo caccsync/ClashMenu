@@ -34,7 +34,7 @@ extension MenuBarRoot {
 
                 VStack(alignment: .leading, spacing: MenuBarLayoutTokens.space4) {
                     HStack(spacing: MenuBarLayoutTokens.space6) {
-                        Text("ClashBar")
+                        Text("ClashMenu")
                             .font(.app(size: MenuBarLayoutTokens.FontSize.title, weight: .semibold))
                             .foregroundStyle(nativePrimaryLabel)
 

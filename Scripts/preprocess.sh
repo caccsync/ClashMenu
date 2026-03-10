@@ -2,24 +2,34 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="${APP_NAME:-ClashBar}"
+APP_NAME="${APP_NAME:-ClashMenu}"
 TARGET_ARCH="${TARGET_ARCH:-}"
 MIHOMO_REPO="${MIHOMO_REPO:-MetaCubeX/mihomo}"
 MIHOMO_VERSION="${MIHOMO_VERSION:-}"
 DOWNLOAD_MIHOMO="${DOWNLOAD_MIHOMO:-1}"
 REUSE_LOCAL_MIHOMO="${REUSE_LOCAL_MIHOMO:-1}"
 PREPARE_MIHOMO_BINARY="${PREPARE_MIHOMO_BINARY:-1}"
+DOWNLOAD_ZASHBOARD="${DOWNLOAD_ZASHBOARD:-1}"
+REUSE_LOCAL_ZASHBOARD="${REUSE_LOCAL_ZASHBOARD:-1}"
+PREPARE_ZASHBOARD="${PREPARE_ZASHBOARD:-1}"
+ZASHBOARD_URL="${ZASHBOARD_URL:-https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip}"
 PREPROCESS_DIR="${PREPROCESS_DIR:-$ROOT/dist/preprocess}"
 
 MIHOMO_RESOURCE_PATH="$ROOT/Sources/ClashBar/Resources/bin/mihomo"
 PREPROCESSED_MIHOMO_PATH="$PREPROCESS_DIR/mihomo"
+ZASHBOARD_RESOURCE_PATH="$ROOT/Sources/ClashBar/Resources/zashboard"
+PREPROCESSED_ZASHBOARD_PATH="$PREPROCESS_DIR/zashboard"
 ICON_SOURCE="$ROOT/Sources/ClashBar/Resources/Brand/clashbar-icon.png"
 PREPROCESSED_ICON_PATH="$PREPROCESS_DIR/${APP_NAME}.icns"
 MIHOMO_TMP_DIR=""
+ZASHBOARD_TMP_DIR=""
 
 cleanup() {
   if [ -n "$MIHOMO_TMP_DIR" ]; then
     rm -rf "$MIHOMO_TMP_DIR"
+  fi
+  if [ -n "$ZASHBOARD_TMP_DIR" ]; then
+    rm -rf "$ZASHBOARD_TMP_DIR"
   fi
 }
 trap cleanup EXIT
@@ -144,6 +154,68 @@ prepare_mihomo() {
   echo "Updated source mihomo resource: $MIHOMO_RESOURCE_PATH"
 }
 
+is_dashboard_bundle() {
+  local path="$1"
+  [ -f "$path/index.html" ]
+}
+
+install_dashboard_bundle() {
+  local source_path="$1"
+  local target_path="$2"
+
+  rm -rf "$target_path"
+  mkdir -p "$(dirname "$target_path")"
+  ditto "$source_path" "$target_path"
+}
+
+download_zashboard() {
+  local archive_path=""
+  local extract_dir=""
+  local dashboard_root=""
+
+  ZASHBOARD_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/${APP_NAME}.zashboard.XXXXXX")"
+  archive_path="$ZASHBOARD_TMP_DIR/zashboard.zip"
+  extract_dir="$ZASHBOARD_TMP_DIR/extracted"
+  mkdir -p "$extract_dir"
+
+  curl -fsSL "$ZASHBOARD_URL" -o "$archive_path"
+  ditto -x -k "$archive_path" "$extract_dir"
+
+  dashboard_root="$(find "$extract_dir" -type f -name 'index.html' -print | head -n 1 || true)"
+  if [ -z "$dashboard_root" ]; then
+    echo "Failed to locate zashboard index.html in downloaded archive." >&2
+    exit 1
+  fi
+
+  dashboard_root="$(dirname "$dashboard_root")"
+  install_dashboard_bundle "$dashboard_root" "$PREPROCESSED_ZASHBOARD_PATH"
+
+  echo "Prepared zashboard path: $PREPROCESSED_ZASHBOARD_PATH"
+}
+
+prepare_zashboard() {
+  if [ "$REUSE_LOCAL_ZASHBOARD" = "1" ] && is_dashboard_bundle "$ZASHBOARD_RESOURCE_PATH"; then
+    install_dashboard_bundle "$ZASHBOARD_RESOURCE_PATH" "$PREPROCESSED_ZASHBOARD_PATH"
+    echo "Prepared zashboard from local resource: $ZASHBOARD_RESOURCE_PATH"
+  else
+    if [ "$DOWNLOAD_ZASHBOARD" != "1" ]; then
+      echo "Local zashboard bundle is missing or invalid, and DOWNLOAD_ZASHBOARD=$DOWNLOAD_ZASHBOARD." >&2
+      echo "Provide a valid dashboard bundle at $ZASHBOARD_RESOURCE_PATH or enable download." >&2
+      exit 1
+    fi
+
+    download_zashboard
+  fi
+
+  if ! is_dashboard_bundle "$PREPROCESSED_ZASHBOARD_PATH"; then
+    echo "Prepared zashboard bundle is invalid: $PREPROCESSED_ZASHBOARD_PATH" >&2
+    exit 1
+  fi
+
+  install_dashboard_bundle "$PREPROCESSED_ZASHBOARD_PATH" "$ZASHBOARD_RESOURCE_PATH"
+  echo "Updated source zashboard resource: $ZASHBOARD_RESOURCE_PATH"
+}
+
 prepare_icon() {
   if [ ! -f "$ICON_SOURCE" ]; then
     echo "Warning: app icon source not found at $ICON_SOURCE"
@@ -152,7 +224,7 @@ prepare_icon() {
 
   local iconset_work_dir
   local iconset_dir
-  iconset_work_dir="$(mktemp -d "${TMPDIR:-/tmp}/clashbar.iconset.XXXXXX")"
+  iconset_work_dir="$(mktemp -d "${TMPDIR:-/tmp}/clashmenu.iconset.XXXXXX")"
   iconset_dir="${iconset_work_dir}.iconset"
   mv "$iconset_work_dir" "$iconset_dir"
 
@@ -179,4 +251,12 @@ else
   rm -f "$PREPROCESSED_MIHOMO_PATH"
   echo "Skipping mihomo preprocessing because PREPARE_MIHOMO_BINARY=$PREPARE_MIHOMO_BINARY"
 fi
+
+if [ "$PREPARE_ZASHBOARD" = "1" ]; then
+  prepare_zashboard
+else
+  rm -rf "$PREPROCESSED_ZASHBOARD_PATH"
+  echo "Skipping zashboard preprocessing because PREPARE_ZASHBOARD=$PREPARE_ZASHBOARD"
+fi
+
 prepare_icon

@@ -3,31 +3,32 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClashBar",
+    name: "ClashMenu",
     defaultLocalization: "zh-Hans",
     platforms: [
         .macOS(.v13),
     ],
     products: [
-        .executable(name: "ClashBar", targets: ["ClashBar"]),
-        .executable(name: "ClashBarProxyHelper", targets: ["ClashBarProxyHelper"]),
+        .executable(name: "ClashMenu", targets: ["ClashMenu"]),
+        .executable(name: "ClashMenuProxyHelper", targets: ["ClashMenuProxyHelper"]),
     ],
     targets: [
         .target(
             name: "ProxyHelperShared",
             path: "Sources/Helper/Shared"),
         .executableTarget(
-            name: "ClashBar",
+            name: "ClashMenu",
             dependencies: ["ProxyHelperShared"],
             path: "Sources/ClashBar",
             resources: [
                 .copy("Resources/bin"),
                 .copy("Resources/Brand/clashbar-icon.png"),
-                .copy("Resources/ConfigTemplates/ClashBar.yaml"),
+                .copy("Resources/ConfigTemplates/ClashMenu.yaml"),
+                .copy("Resources/zashboard"),
                 .process("Resources/Localization"),
             ]),
         .executableTarget(
-            name: "ClashBarProxyHelper",
+            name: "ClashMenuProxyHelper",
             dependencies: ["ProxyHelperShared"],
             path: "Sources/Helper/Daemon"),
     ])

@@ -13,13 +13,17 @@ extension AppState {
         }
     }
 
-    func runNoResponseAction(_ name: String, operation: () async throws -> Void) async {
+    @discardableResult
+    func runNoResponseAction(_ name: String, operation: () async throws -> Void) async -> String? {
         do {
             ensureAPIClient()
             try await operation()
             appendLog(level: "info", message: tr("log.action.success", name))
+            return nil
         } catch {
-            appendLog(level: "error", message: tr("log.action.failed", name, error.localizedDescription))
+            let message = error.localizedDescription
+            appendLog(level: "error", message: tr("log.action.failed", name, message))
+            return message
         }
     }
 }

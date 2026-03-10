@@ -111,7 +111,7 @@ final class StatusItemContentView: NSView {
                 previousSymbolName != symbolName ||
                 self.currentDisplay?.mode != previousMode
             {
-                let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "ClashBar")
+                let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "ClashMenu")
                 let config = NSImage.SymbolConfiguration(pointSize: self.symbolPointSize, weight: .semibold)
                 self.iconView.image = image?.withSymbolConfiguration(config)
             }

@@ -168,7 +168,7 @@ extension MenuBarRoot {
                 background: nativePositive.opacity(T.Opacity.tint),
                 isDisabled: !appState.isTunToggleEnabled,
                 isOn: Binding(
-                    get: { appState.isTunEnabled },
+                    get: { appState.desiredTunEnabled },
                     set: { value in
                         Task { await appState.toggleTunMode(value) }
                     }))

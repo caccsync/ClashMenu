@@ -171,7 +171,7 @@ extension AppState {
             allowLan: settingsAllowLan,
             ipv6: settingsIPv6,
             tcpConcurrent: settingsTCPConcurrent,
-            tunEnabled: isTunEnabled,
+            tunEnabled: desiredTunEnabled,
             logLevel: settingsLogLevel,
             port: settingsPort,
             socksPort: settingsSocksPort,
@@ -278,6 +278,7 @@ extension AppState {
         settingsAllowLan = snapshot.allowLan
         settingsIPv6 = snapshot.ipv6
         settingsTCPConcurrent = snapshot.tcpConcurrent
+        desiredTunEnabled = snapshot.tunEnabled
         isTunEnabled = snapshot.tunEnabled
         settingsLogLevel = snapshot.logLevel
         settingsPort = snapshot.port

@@ -1,8 +1,10 @@
 @MainActor
 extension AppState {
-    func switchMode(to target: CoreMode) async {
-        if !isModeSwitchEnabled || modeSwitchInFlight || target == currentMode { return }
+    @discardableResult
+    func switchMode(to target: CoreMode) async -> String? {
+        if !isModeSwitchEnabled || modeSwitchInFlight || target == currentMode { return nil }
         modeSwitchInFlight = true
+        let previousMode = currentMode
         defer { modeSwitchInFlight = false }
 
         // Optimistic UI update: keep interaction snappy, polling will reconcile if server differs.
@@ -10,12 +12,15 @@ extension AppState {
 
         do {
             try await modeSwitchTransport().requestNoResponse(.patchConfigs(body: ["mode": .string(target.rawValue)]))
+            return nil
         } catch {
-            // Intentional no-op: mode switch failures stay silent by product decision.
+            currentMode = previousMode
+            return error.localizedDescription
         }
     }
 
-    func toggleSystemProxy(_ enabled: Bool) async {
+    @discardableResult
+    func toggleSystemProxy(_ enabled: Bool) async -> String? {
         isProxySyncing = true
         defer { isProxySyncing = false }
 
@@ -30,12 +35,16 @@ extension AppState {
             // Keep a core-side sync call so proxy toggle and runtime config stay aligned.
             try await clientOrThrow().requestNoResponse(.patchConfigs(body: ["mode": .string(currentMode.rawValue)]))
 
+            desiredSystemProxyEnabled = enabled
             isSystemProxyEnabled = enabled
             let state = enabled ? tr("log.system_proxy.enabled") : tr("log.system_proxy.disabled")
             appendLog(level: "info", message: tr("log.system_proxy.toggled", state))
+            return nil
         } catch {
-            appendLog(level: "error", message: tr("log.system_proxy.toggle_failed", systemProxyErrorMessage(error)))
+            let message = systemProxyErrorMessage(error)
+            appendLog(level: "error", message: tr("log.system_proxy.toggle_failed", message))
             await refreshSystemProxyStatus()
+            return message
         }
     }
 

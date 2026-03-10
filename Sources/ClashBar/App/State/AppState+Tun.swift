@@ -13,12 +13,14 @@ enum TunModeError: LocalizedError {
 
 @MainActor
 extension AppState {
-    func toggleTunMode(_ enabled: Bool) async {
-        guard !isTunSyncing else { return }
-        guard enabled != isTunEnabled else { return }
+    @discardableResult
+    func toggleTunMode(_ enabled: Bool) async -> String? {
+        guard !isTunSyncing else { return nil }
+        guard enabled != desiredTunEnabled || enabled != isTunEnabled else { return nil }
 
         isTunSyncing = true
-        let previousValue = isTunEnabled
+        let previousDesiredValue = desiredTunEnabled
+        let previousRuntimeValue = isTunEnabled
         defer { isTunSyncing = false }
 
         do {
@@ -26,6 +28,7 @@ extension AppState {
                 try await self.ensureTunPermissions(requestIfMissing: true)
             }
 
+            desiredTunEnabled = enabled
             isTunEnabled = enabled
             persistEditableSettingsSnapshot()
             try await self.applyTunRuntimeChange(enabled: enabled)
@@ -33,11 +36,15 @@ extension AppState {
             appendLog(
                 level: "info",
                 message: tr("log.tun.toggled", enabled ? tr("log.tun.enabled") : tr("log.tun.disabled")))
+            return nil
         } catch {
-            isTunEnabled = previousValue
+            desiredTunEnabled = previousDesiredValue
+            isTunEnabled = previousRuntimeValue
             persistEditableSettingsSnapshot()
-            appendLog(level: "error", message: tr("log.tun.toggle_failed", self.tunErrorMessage(error)))
+            let message = self.tunErrorMessage(error)
+            appendLog(level: "error", message: tr("log.tun.toggle_failed", message))
             await self.refreshTunStatusFromRuntimeConfig()
+            return message
         }
     }
 
@@ -51,14 +58,13 @@ extension AppState {
             return overlay
         } catch {
             isTunEnabled = false
-            persistEditableSettingsSnapshot()
             appendLog(level: "warning", message: tr("log.tun.startup_disabled"))
             return overlay.withTunEnabled(false)
         }
     }
 
     func validateTunPermissionsOnStartup() async {
-        guard isTunEnabled else { return }
+        guard desiredTunEnabled else { return }
         do {
             try await self.ensureTunPermissions(requestIfMissing: false)
         } catch {
@@ -67,7 +73,6 @@ extension AppState {
                     try await self.patchTunConfig(enable: false)
                 }
                 isTunEnabled = false
-                persistEditableSettingsSnapshot()
                 appendLog(level: "warning", message: tr("log.tun.startup_disabled"))
             } catch {
                 appendLog(level: "error", message: tr("log.tun.startup_check_failed", self.tunErrorMessage(error)))
@@ -145,6 +150,7 @@ extension AppState {
         do {
             let config = try await fetchRuntimeConfigSnapshot()
             if config.tunEnabled == true {
+                desiredTunEnabled = true
                 isTunEnabled = true
                 persistEditableSettingsSnapshot()
                 return
@@ -152,6 +158,7 @@ extension AppState {
 
             try await self.patchTunConfig(enable: true)
             try await self.verifyTunRuntimeState(expectedEnabled: true)
+            desiredTunEnabled = true
             persistEditableSettingsSnapshot()
             appendLog(level: "info", message: tr("log.tun.toggled", tr("log.tun.enabled")))
         } catch {
@@ -173,7 +180,6 @@ extension AppState {
                 let current = config.tunEnabled ?? false
                 if isTunEnabled != current {
                     isTunEnabled = current
-                    persistEditableSettingsSnapshot()
                 }
                 if current == expectedEnabled {
                     return
@@ -289,7 +295,6 @@ extension AppState {
             let config = try await fetchRuntimeConfigSnapshot()
             if let tunEnabled = config.tunEnabled, isTunEnabled != tunEnabled {
                 isTunEnabled = tunEnabled
-                persistEditableSettingsSnapshot()
             }
         } catch {
             // Keep current UI state when runtime config refresh is unavailable.

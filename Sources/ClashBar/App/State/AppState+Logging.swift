@@ -4,7 +4,7 @@ import Foundation
 extension AppState {
     func ensureLogFileExists() {
         self.flushPendingMihomoLogsIfNeeded()
-        clashbarLogStore?.ensureLogFileExists()
+        clashmenuLogStore?.ensureLogFileExists()
         mihomoLogStore?.ensureLogFileExists()
     }
 
@@ -13,12 +13,12 @@ extension AppState {
         mihomoLogFlushTask = nil
         pendingMihomoLogs.removeAll(keepingCapacity: false)
         errorLogs.removeAll(keepingCapacity: false)
-        clashbarLogStore?.clear()
+        clashmenuLogStore?.clear()
         mihomoLogStore?.clear()
     }
 
     func appendLog(level: String, message: String) {
-        self.appendLog(source: .clashbar, level: level, message: message)
+        self.appendLog(source: .clashmenu, level: level, message: message)
     }
 
     func appendMihomoLog(level: String, message: String) {
@@ -98,9 +98,9 @@ extension AppState {
     private func persistLogEntriesToFile(_ entries: [AppErrorLogEntry]) {
         guard !entries.isEmpty else { return }
 
-        let clashbarEntries = entries.filter { $0.source == .clashbar }
-        if !clashbarEntries.isEmpty {
-            clashbarLogStore?.append(entries: clashbarEntries)
+        let clashmenuEntries = entries.filter { $0.source == .clashmenu }
+        if !clashmenuEntries.isEmpty {
+            clashmenuLogStore?.append(entries: clashmenuEntries)
         }
 
         let mihomoEntries = entries.filter { $0.source == .mihomo }

@@ -327,18 +327,20 @@ final class AppState: ObservableObject {
     var isLatestAppReleaseCheckInFlight = false
 
     let defaults = UserDefaults.standard
-    @AppStorage("clashbar.auto.start.core") private var autoStartCore: Bool = false
-    @AppStorage("clashbar.auto.core.network.recovery") private var autoCoreControlOnNetworkChange: Bool = true
-    @AppStorage("clashbar.statusbar.display.mode") private var statusBarDisplayModeRaw: String = StatusBarDisplayMode
+    @AppStorage("clashmenu.auto.start.core") private var autoStartCore: Bool = false
+    @AppStorage("clashmenu.auto.core.network.recovery") private var autoCoreControlOnNetworkChange: Bool = true
+    @AppStorage("clashmenu.statusbar.display.mode") private var statusBarDisplayModeRaw: String = StatusBarDisplayMode
         .iconOnly.rawValue
-    @AppStorage("clashbar.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
-    let selectedConfigKey = "clashbar.config.selected.filename"
-    let legacySelectedConfigKey = "clashbar.config.selected"
-    let remoteConfigSourcesKey = "clashbar.config.remote.sources.v1"
-    let lastSuccessfulConfigPathKey = "clashbar.last.success.config.path"
-    let editableSettingsSnapshotKey = "clashbar.settings.editable.snapshot.v1"
-    let uiLanguageKey = "clashbar.ui.language"
-    let appearanceModeKey = "clashbar.ui.appearance.mode"
+    @AppStorage("clashmenu.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
+    @AppStorage("clashmenu.system_proxy.desired") var desiredSystemProxyEnabled: Bool = false
+    @AppStorage("clashmenu.tun.desired") var desiredTunEnabled: Bool = false
+    let selectedConfigKey = "clashmenu.config.selected.filename"
+    let legacySelectedConfigKey = "clashmenu.config.selected"
+    let remoteConfigSourcesKey = "clashmenu.config.remote.sources.v1"
+    let lastSuccessfulConfigPathKey = "clashmenu.last.success.config.path"
+    let editableSettingsSnapshotKey = "clashmenu.settings.editable.snapshot.v1"
+    let uiLanguageKey = "clashmenu.ui.language"
+    let appearanceModeKey = "clashmenu.ui.appearance.mode"
     let maxLogEntries = 200
     let hiddenPanelMaxInMemoryLogEntries = 20
     let maxBufferedMihomoLogEntries = 40
@@ -361,9 +363,9 @@ final class AppState: ObservableObject {
     var mediumFrequencyIntervalNanoseconds: UInt64 = 4_000_000_000
     var lowFrequencyIntervalNanoseconds: UInt64 = 20_000_000_000
     var currentConnectionsStreamIntervalMilliseconds: Int?
-    var clashbarLogFileURL: URL?
+    var clashmenuLogFileURL: URL?
     var mihomoLogFileURL: URL?
-    var clashbarLogStore: AppLogStore?
+    var clashmenuLogStore: AppLogStore?
     var mihomoLogStore: AppLogStore?
     var didAttemptAutoStart = false
     var didCheckSystemProxyConsistencyOnLaunch = false
@@ -378,7 +380,7 @@ final class AppState: ObservableObject {
     var remoteConfigSources: [String: String] = [:]
     var externalControllerWarningKeys: Set<String> = []
     let streamJSONDecoder = JSONDecoder()
-    let initialNoCoreSetupGuideShownKey = "clashbar.core.install.guide.shown.v1"
+    let initialNoCoreSetupGuideShownKey = "clashmenu.core.install.guide.shown.v1"
     let bundlesMihomoCore: Bool
     var didPresentInitialNoCoreSetupGuide = false
 
@@ -391,7 +393,7 @@ final class AppState: ObservableObject {
         configImportService: ConfigImportService = ConfigImportService(),
         appLaunchService: AppLaunchService = AppLaunchService(),
         networkReachabilityMonitor: NetworkReachabilityMonitor = NetworkReachabilityMonitor(),
-        clashbarLogStore: AppLogStore? = nil,
+        clashmenuLogStore: AppLogStore? = nil,
         mihomoLogStore: AppLogStore? = nil,
         startBackgroundRefresh: Bool = true)
     {
@@ -402,7 +404,7 @@ final class AppState: ObservableObject {
         self.configImportService = configImportService
         self.appLaunchService = appLaunchService
         self.networkReachabilityMonitor = networkReachabilityMonitor
-        self.clashbarLogStore = clashbarLogStore
+        self.clashmenuLogStore = clashmenuLogStore
         self.mihomoLogStore = mihomoLogStore
         self.configManager = configManager ?? ConfigDirectoryManager(workingDirectoryManager: workingDirectoryManager)
         self.bundlesMihomoCore = Self.resolveBundledMihomoCoreFlag()
@@ -438,21 +440,22 @@ final class AppState: ObservableObject {
         }
         do {
             try self.workingDirectoryManager.bootstrapDirectories()
-            clashbarLogFileURL = self.workingDirectoryManager.logsDirectoryURL.appendingPathComponent(
-                "clashbar.log",
+            clashmenuLogFileURL = self.workingDirectoryManager.logsDirectoryURL.appendingPathComponent(
+                "clashmenu.log",
                 isDirectory: false)
             mihomoLogFileURL = self.workingDirectoryManager.logsDirectoryURL.appendingPathComponent(
                 "mihomo.log",
                 isDirectory: false)
 
-            if let clashbarLogFileURL, self.clashbarLogStore == nil {
-                self.clashbarLogStore = AppLogStore(logFileURL: clashbarLogFileURL)
+            if let clashmenuLogFileURL, self.clashmenuLogStore == nil {
+                self.clashmenuLogStore = AppLogStore(logFileURL: clashmenuLogFileURL)
             }
             if let mihomoLogFileURL, self.mihomoLogStore == nil {
                 self.mihomoLogStore = AppLogStore(logFileURL: mihomoLogFileURL)
             }
             ensureLogFileExists()
             seedBundledConfigIfNeeded()
+            seedBundledDashboardIfNeeded()
         } catch {
             appendLog(level: "error", message: tr("log.working_dir_init_failed", error.localizedDescription))
         }
@@ -508,7 +511,7 @@ final class AppState: ObservableObject {
     }
 
     private static func resolveBundledMihomoCoreFlag() -> Bool {
-        guard let value = Bundle.main.object(forInfoDictionaryKey: "ClashBarBundlesMihomoCore") else {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: "ClashMenuBundlesMihomoCore") else {
             return true
         }
 

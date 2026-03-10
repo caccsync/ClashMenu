@@ -51,8 +51,8 @@ ${changelog_section}
 
 ## 下载地址
 
-- Apple Silicon（内置 Mihomo）: [ClashBar-${version}-apple-silicon.dmg](${download_base}/ClashBar-${version}-apple-silicon.dmg)
-- Apple Silicon（无内核）: [ClashBar-${version}-apple-silicon-no-core.dmg](${download_base}/ClashBar-${version}-apple-silicon-no-core.dmg)
-- Intel（内置 Mihomo）: [ClashBar-${version}-intel.dmg](${download_base}/ClashBar-${version}-intel.dmg)
-- Intel（无内核）: [ClashBar-${version}-intel-no-core.dmg](${download_base}/ClashBar-${version}-intel-no-core.dmg)
+- Apple Silicon（内置 Mihomo）: [ClashMenu-${version}-apple-silicon.dmg](${download_base}/ClashMenu-${version}-apple-silicon.dmg)
+- Apple Silicon（无内核）: [ClashMenu-${version}-apple-silicon-no-core.dmg](${download_base}/ClashMenu-${version}-apple-silicon-no-core.dmg)
+- Intel（内置 Mihomo）: [ClashMenu-${version}-intel.dmg](${download_base}/ClashMenu-${version}-intel.dmg)
+- Intel（无内核）: [ClashMenu-${version}-intel-no-core.dmg](${download_base}/ClashMenu-${version}-intel-no-core.dmg)
 EOF

@@ -177,6 +177,7 @@ extension AppState {
     }
 
     func quitApp() async {
+        await self.disableSystemProxyForTerminationIfNeeded()
         self.prepareForTermination()
         if processManager.isRunning {
             await processManager.stopAsync()
@@ -188,6 +189,28 @@ extension AppState {
         self.prepareForTermination()
         if processManager.isRunning {
             processManager.stop()
+        }
+    }
+
+    private func disableSystemProxyForTerminationIfNeeded() async {
+        let shouldRestoreOnNextLaunch = self.isSystemProxyEnabled || self.desiredSystemProxyEnabled
+        self.desiredSystemProxyEnabled = shouldRestoreOnNextLaunch
+
+        guard self.isSystemProxyEnabled else { return }
+
+        self.isProxySyncing = true
+        defer { self.isProxySyncing = false }
+
+        do {
+            try await self.applySystemProxy(enabled: false, host: self.controllerHost(), ports: .disabled)
+            self.isSystemProxyEnabled = false
+            self.appendLog(
+                level: "info",
+                message: self.tr("log.system_proxy.toggled", self.tr("log.system_proxy.disabled")))
+        } catch {
+            self.appendLog(
+                level: "error",
+                message: self.tr("log.system_proxy.toggle_failed", self.systemProxyErrorMessage(error)))
         }
     }
 
@@ -358,7 +381,7 @@ extension AppState {
         self.mergeCoreFeatureRecoveryStates(
             CoreFeatureRecoveryState(
                 systemProxyEnabled: self.isSystemProxyEnabled,
-                tunEnabled: self.isTunEnabled),
+                tunEnabled: self.desiredTunEnabled || self.isTunEnabled),
             self.pendingCoreFeatureRecoveryState)
     }
 
@@ -377,7 +400,7 @@ extension AppState {
         let runtimeRunningBeforeTransition = self.isRuntimeRunning
         let capturedRecovery = CoreFeatureRecoveryState(
             systemProxyEnabled: runtimeRunningBeforeTransition && self.isSystemProxyEnabled,
-            tunEnabled: runtimeRunningBeforeTransition && self.isTunEnabled)
+            tunEnabled: runtimeRunningBeforeTransition && (self.desiredTunEnabled || self.isTunEnabled))
 
         let baseRecovery: CoreFeatureRecoveryState = if capturedRecovery.shouldRecoverAnyFeature {
             capturedRecovery

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="${APP_NAME:-ClashBar}"
-APP_VERSION="${APP_VERSION:-0.1.0}"
+APP_NAME="${APP_NAME:-ClashMenu}"
+APP_VERSION="${APP_VERSION:-0.0.1}"
 DMG_SUFFIX="${DMG_SUFFIX:-}"
 VOLUME_NAME="${DMG_VOLUME_NAME:-${APP_NAME}}"
 

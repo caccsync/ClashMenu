@@ -7,7 +7,7 @@ extension AppState {
     func seedBundledConfigIfNeeded() {
         let fileManager = FileManager.default
         let targetURL = workingDirectoryManager.configDirectoryURL
-            .appendingPathComponent("ClashBar.yaml", isDirectory: false)
+            .appendingPathComponent("ClashMenu.yaml", isDirectory: false)
 
         if fileManager.fileExists(atPath: targetURL.path) {
             return
@@ -23,15 +23,15 @@ extension AppState {
         } catch {
             appendLog(
                 level: "error",
-                message: tr("log.config.import_local.failed", "ClashBar.yaml", error.localizedDescription))
+                message: tr("log.config.import_local.failed", "ClashMenu.yaml", error.localizedDescription))
         }
     }
 
     private func bundledDefaultConfigURL(fileManager: FileManager = .default) -> URL? {
         let candidateRelativePaths = [
-            "ConfigTemplates/ClashBar.yaml",
-            "Resources/ConfigTemplates/ClashBar.yaml",
-            "ClashBar.yaml",
+            "ConfigTemplates/ClashMenu.yaml",
+            "Resources/ConfigTemplates/ClashMenu.yaml",
+            "ClashMenu.yaml",
         ]
 
         for root in AppResourceBundleLocator.candidateResourceRoots() {
@@ -304,7 +304,7 @@ extension AppState {
 
     func reloadConfig() async {
         let actionName = tr("log.action_name.reload_config")
-        let expectedTunEnabled = isTunEnabled
+        let expectedTunEnabled = desiredTunEnabled
 
         do {
             ensureAPIClient()
