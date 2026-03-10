@@ -13,8 +13,4 @@ extension AppState {
             try await self.clientOrThrow().requestNoResponse(.flushDNSCache)
         }
     }
-
-    func refreshActiveTab() async {
-        await refreshForActivatedTab(activeMenuTab)
-    }
 }

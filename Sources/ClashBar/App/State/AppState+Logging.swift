@@ -52,7 +52,7 @@ extension AppState {
 
     func trimInMemoryLogsForCurrentVisibility() {
         self.flushPendingMihomoLogsIfNeeded()
-        let maxEntries = isPanelPresented ? maxLogEntries : hiddenPanelMaxInMemoryLogEntries
+        let maxEntries = hiddenPanelMaxInMemoryLogEntries
         guard errorLogs.count > maxEntries else { return }
         errorLogs.removeLast(errorLogs.count - maxEntries)
     }
@@ -89,7 +89,7 @@ extension AppState {
         guard !entries.isEmpty else { return }
 
         errorLogs.insert(contentsOf: entries.reversed(), at: 0)
-        let maxEntries = isPanelPresented ? maxLogEntries : hiddenPanelMaxInMemoryLogEntries
+        let maxEntries = hiddenPanelMaxInMemoryLogEntries
         if errorLogs.count > maxEntries {
             errorLogs.removeLast(errorLogs.count - maxEntries)
         }

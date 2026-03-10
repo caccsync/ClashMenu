@@ -54,16 +54,6 @@ enum ConfigPatchValue: Sendable {
     }
 }
 
-enum StatusBarDisplayMode: String, CaseIterable, Identifiable {
-    case iconOnly = "icon_only"
-    case iconAndSpeed = "icon_and_speed"
-    case speedOnly = "speed_only"
-
-    var id: String {
-        rawValue
-    }
-}
-
 enum AppAppearanceMode: String, CaseIterable, Identifiable {
     case system
     case light
@@ -72,16 +62,6 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
     var id: String {
         rawValue
     }
-}
-
-struct DataAcquisitionPolicy: Equatable {
-    let enableTrafficStream: Bool
-    let enableMemoryStream: Bool
-    let enableConnectionsStream: Bool
-    let connectionsIntervalMilliseconds: Int?
-    let enableLogsStream: Bool
-    let mediumFrequencyIntervalNanoseconds: UInt64
-    let lowFrequencyIntervalNanoseconds: UInt64
 }
 
 enum ProviderRefreshTrigger {
@@ -120,17 +100,8 @@ struct ProviderNodeKey: Hashable {
     let node: String
 }
 
-struct MenuBarSpeedLines: Equatable {
-    let up: String
-    let down: String
-
-    static let zero = MenuBarSpeedLines(up: "↑0K", down: "↓0K")
-}
-
 struct MenuBarDisplay: Equatable {
-    let mode: StatusBarDisplayMode
-    let symbolName: String?
-    let speedLines: MenuBarSpeedLines?
+    let symbolName: String
 }
 
 struct CoreFeatureRecoveryState {

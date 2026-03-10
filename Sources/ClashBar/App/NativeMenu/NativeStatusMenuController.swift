@@ -55,6 +55,10 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
             self.appState.reloadConfigFileList()
             self.appState.refreshLaunchAtLoginStatus()
             self.refreshAllUI(rebuildConfigMenu: true)
+        } else if menu == self.runtimeMenu {
+            self.refreshRuntimeMenu()
+        } else if menu == self.modeMenu {
+            self.refreshModeMenu()
         } else if menu == self.configMenu {
             self.refreshConfigMenu()
         }
@@ -74,6 +78,9 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     private func configureMenu() {
         self.menu.autoenablesItems = false
+        self.runtimeMenu.autoenablesItems = false
+        self.modeMenu.autoenablesItems = false
+        self.configMenu.autoenablesItems = false
         self.menu.delegate = self
         self.runtimeMenu.delegate = self
         self.modeMenu.delegate = self
@@ -163,9 +170,9 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     }
 
     private func refreshRuntimeMenu() {
-        let running = self.appState.isRuntimeRunning
+        let running = self.appState.processManager.isRunning
         self.runtimeStatusItem.attributedTitle = nil
-        self.runtimeStatusItem.title = running ? self.local("运行中", "Running") : self.local("已停止", "Stopped")
+        self.runtimeStatusItem.title = self.appState.runtimeStatusText
         self.runtimeStatusItem.state = running ? .on : .off
         self.runtimeStatusItem.onStateImage = self.runtimeIndicatorImage(color: .systemGreen)
         self.runtimeStatusItem.offStateImage = self.runtimeIndicatorImage(color: .secondaryLabelColor)

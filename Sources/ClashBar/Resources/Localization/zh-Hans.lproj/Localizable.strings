@@ -82,7 +82,6 @@
 "ui.empty.proxy_providers" = "暂无代理提供者";
 "ui.empty.proxy_groups" = "暂无代理组";
 "ui.empty.rules" = "暂无规则数据";
-"ui.empty.connections" = "暂无活动连接";
 "ui.empty.logs" = "暂无日志";
 
 
@@ -106,7 +105,6 @@
 "ui.settings.auto_start_core" = "内核自启";
 "ui.settings.auto_core_network_recovery" = "断网停核";
 "ui.settings.launch_at_login" = "开机自启";
-"ui.settings.menu_bar_style" = "状态栏样式";
 "ui.settings.language" = "界面语言";
 "ui.settings.appearance" = "外观模式";
 "ui.settings.appearance.system" = "跟随系统";
@@ -127,9 +125,6 @@
 "ui.settings.ports_auto_save_hint" = "端口修改后将自动保存到内核配置";
 "ui.settings.ports_auto_saving" = "保存中...";
 
-"ui.settings.display_mode.icon_and_speed" = "图标 + 速度";
-"ui.settings.display_mode.icon_only" = "仅图标";
-"ui.settings.display_mode.speed_only" = "仅速度";
 
 "ui.language.zh_hans" = "简体中文";
 "ui.language.en" = "English";
@@ -206,10 +201,6 @@
 "app.provider_refresh.reason.config_switch_requested" = "配置切换请求";
 "app.provider_refresh.reason.superseded" = "被新任务替换";
 
-"app.stream.label.traffic" = "流量";
-"app.stream.label.memory" = "内存";
-"app.stream.label.connections" = "连接";
-"app.stream.label.logs" = "日志";
 "app.core.alert.start_failed.title" = "启动内核失败";
 "app.core.alert.restart_failed.title" = "重启内核失败";
 "app.core.alert.process_terminated.title" = "内核异常退出";
@@ -269,14 +260,10 @@
 "log.providers.rule_update_failed" = "Providers 刷新: 更新规则提供者失败（%@）: %@";
 "log.providers.api_unavailable" = "Providers 刷新跳过: API 不可用（%@）";
 "log.secret.migration_failed" = "Secret 迁移到钥匙串失败: %@";
-"log.stream.start_failed" = "%@ WS 启动失败: %@";
-"log.stream.disconnected" = "%@ WS 已断开: %@";
 "log.system_proxy.read_failed" = "读取系统代理状态失败: %@";
 "log.launch_at_login.toggle_failed" = "切换开机自启失败: %@";
 "log.action.success" = "%@: 成功";
 "log.action.failed" = "%@: %@";
-"log.connection.copy_host" = "已复制连接 Host：%@";
-"log.connection.copy_id" = "已复制连接 ID：%@";
 "log.logs.copied_message" = "已复制日志消息";
 "log.logs.copied_entry" = "已复制完整日志";
 
@@ -285,7 +272,6 @@
 "log.action_name.update_rule_provider" = "更新规则提供者 %@";
 "log.action_name.update_proxy_provider" = "更新代理提供者 %@";
 "log.action_name.close_all_connections" = "关闭全部连接";
-"log.action_name.close_connection" = "关闭连接 %@";
 "log.action_name.flush_fakeip_cache" = "清理 FakeIP 缓存";
 "log.action_name.flush_dns_cache" = "清理 DNS 缓存";
 

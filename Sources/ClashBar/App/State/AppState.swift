@@ -13,19 +13,6 @@ final class AppState: ObservableObject {
     @Published var externalControllerDisplay: String = "127.0.0.1:9090"
     @Published var controllerSecret: String?
 
-    @Published var traffic = TrafficSnapshot(up: 0, down: 0) {
-        didSet { self.refreshMenuBarDisplaySnapshotIfNeeded() }
-    }
-
-    @Published var memory = MemorySnapshot(inuse: 0)
-    @Published var displayUpTotal: Int64 = 0
-    @Published var displayDownTotal: Int64 = 0
-    @Published var trafficHistoryUp: [Int64] = []
-    @Published var trafficHistoryDown: [Int64] = []
-
-    @Published var connectionsCount: Int = 0
-    @Published var connections: [ConnectionSummary] = []
-
     @Published var currentMode: CoreMode = .rule
     @Published var logLevel: String = "info"
     @Published var port: Int?
@@ -72,15 +59,10 @@ final class AppState: ObservableObject {
     @Published var providerRefreshStatus: ProviderRefreshStatus = .idle
     @Published var uiLanguage: AppLanguage = .zhHans
     @Published var appearanceMode: AppAppearanceMode = .system
-    @Published var isPanelPresented: Bool = false
-    @Published var activeMenuTab: RootTab = .proxy
     @Published var launchAtLoginEnabled: Bool = false
     @Published var launchAtLoginErrorMessage: String?
     @Published var latestAppReleaseInfo: AppReleaseInfo?
-    @Published private(set) var menuBarDisplaySnapshot = MenuBarDisplay(
-        mode: .iconOnly,
-        symbolName: "bolt.slash.circle",
-        speedLines: nil)
+    @Published private(set) var menuBarDisplaySnapshot = MenuBarDisplay(symbolName: "bolt.slash.circle")
 
     @Published var settingsAllowLan: Bool = false {
         didSet { persistEditableSettingsSnapshot() }
@@ -184,59 +166,12 @@ final class AppState: ObservableObject {
         }
     }
 
-    var statusBarDisplayMode: StatusBarDisplayMode {
-        get { StatusBarDisplayMode(rawValue: self.statusBarDisplayModeRaw) ?? .iconOnly }
-        set {
-            guard self.statusBarDisplayModeRaw != newValue.rawValue else { return }
-            self.statusBarDisplayModeRaw = newValue.rawValue
-            self.refreshMenuBarDisplaySnapshotIfNeeded()
-            self.updateDataAcquisitionPolicy()
-            if newValue != .iconOnly {
-                self.flushPendingTrafficSnapshotIfNeeded(immediately: true)
-            }
-        }
-    }
-
-    var menuBarSpeedLines: MenuBarSpeedLines {
-        guard self.isRuntimeRunning else { return .zero }
-
-        let up = self.compactMenuBarRate(max(0, self.traffic.up))
-        let down = self.compactMenuBarRate(max(0, self.traffic.down))
-        return MenuBarSpeedLines(up: "\(up)↑", down: "\(down)↓")
-    }
-
     var menuBarDisplay: MenuBarDisplay {
         self.menuBarDisplaySnapshot
     }
 
     private var computedMenuBarDisplay: MenuBarDisplay {
-        switch self.statusBarDisplayMode {
-        case .iconOnly:
-            MenuBarDisplay(mode: .iconOnly, symbolName: self.menuBarSymbolName, speedLines: nil)
-        case .iconAndSpeed:
-            MenuBarDisplay(mode: .iconAndSpeed, symbolName: self.menuBarSymbolName, speedLines: self.menuBarSpeedLines)
-        case .speedOnly:
-            MenuBarDisplay(mode: .speedOnly, symbolName: nil, speedLines: self.menuBarSpeedLines)
-        }
-    }
-
-    func compactMenuBarRate(_ bytesPerSecond: Int64) -> String {
-        let normalizedBytes = max(0, bytesPerSecond)
-        if normalizedBytes == 0 {
-            return "0K"
-        }
-
-        var value = Double(normalizedBytes) / 1024
-        let units = ["K", "M", "G", "T"]
-        var unitIndex = 0
-
-        while value >= 1000, unitIndex < units.count - 1 {
-            value /= 1024
-            unitIndex += 1
-        }
-
-        let integer = min(999, max(1, Int(value)))
-        return "\(integer)\(units[unitIndex])"
+        MenuBarDisplay(symbolName: self.menuBarSymbolName)
     }
 
     func refreshMenuBarDisplaySnapshotIfNeeded() {
@@ -299,27 +234,18 @@ final class AppState: ObservableObject {
 
     var mediumFrequencyTask: Task<Void, Never>?
     var lowFrequencyTask: Task<Void, Never>?
-    var streamReceiveTasks: [StreamKind: Task<Void, Never>] = [:]
-    var streamWebSocketTasks: [StreamKind: URLSessionWebSocketTask] = [:]
-    var streamReconnectAttempts: [String: Int] = [:]
-    var streamLastDisconnectLogAt: [String: Date] = [:]
-    var streamLastDisconnectLogMessage: [String: String] = [:]
     var proxyPortsAutoSaveTask: Task<Void, Never>?
     var settingsFeedbackClearTask: Task<Void, Never>?
     var providerRefreshTask: Task<Void, Never>?
     var networkAutoStopTask: Task<Void, Never>?
     var networkAutoStartTask: Task<Void, Never>?
+    var networkWakeRecoveryTask: Task<Void, Never>?
     var deferredEditableSettingsOverlayTask: Task<Void, Never>?
     var configDirectoryMonitorTask: Task<Void, Never>?
-    var trafficDecodeTask: Task<Void, Never>?
     var mihomoLogFlushTask: Task<Void, Never>?
     var providerRefreshGeneration: Int = 0
-    var lastTrafficSampleAt: Date?
-    var lastTrafficDecodeAt: Date = .distantPast
-    var pendingTrafficPayload: Data?
     var pendingMihomoLogs: [AppErrorLogEntry] = []
     var modeSwitchInFlight = false
-    var activatedTabRefreshGeneration: Int = 0
     var configFileSignatureSnapshot: [String: String] = [:]
     var pendingConfigChangeRestart = false
     var lastLatestAppReleaseCheckAt: Date?
@@ -328,8 +254,6 @@ final class AppState: ObservableObject {
     let defaults = UserDefaults.standard
     @AppStorage("clashmenu.auto.start.core") private var autoStartCore: Bool = false
     @AppStorage("clashmenu.auto.core.network.recovery") private var autoCoreControlOnNetworkChange: Bool = true
-    @AppStorage("clashmenu.statusbar.display.mode") private var statusBarDisplayModeRaw: String = StatusBarDisplayMode
-        .iconOnly.rawValue
     @AppStorage("clashmenu.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
     @AppStorage("clashmenu.system_proxy.desired") var desiredSystemProxyEnabled: Bool = false
     @AppStorage("clashmenu.tun.desired") var desiredTunEnabled: Bool = false
@@ -340,28 +264,22 @@ final class AppState: ObservableObject {
     let editableSettingsSnapshotKey = "clashmenu.settings.editable.snapshot.v1"
     let uiLanguageKey = "clashmenu.ui.language"
     let appearanceModeKey = "clashmenu.ui.appearance.mode"
-    let maxLogEntries = 200
     let hiddenPanelMaxInMemoryLogEntries = 20
     let maxBufferedMihomoLogEntries = 40
-    let historyMaxPoints = 60
     let mihomoLogFlushIntervalNanoseconds: UInt64 = 150_000_000
     let foregroundMediumFrequencyIntervalNanoseconds: UInt64 = 4_000_000_000
     let backgroundMediumFrequencyIntervalNanoseconds: UInt64 = 12_000_000_000
-    let foregroundLowFrequencyPrimaryTabsIntervalNanoseconds: UInt64 = 20_000_000_000
-    let foregroundLowFrequencyOtherTabsIntervalNanoseconds: UInt64 = 45_000_000_000
     let backgroundLowFrequencyIntervalNanoseconds: UInt64 = 120_000_000_000
-    let trafficPublishIntervalNanoseconds: UInt64 = 500_000_000
-    let streamDisconnectLogThrottleInterval: TimeInterval = 2
-    let streamReconnectBaseDelayNanoseconds: UInt64 = 1_000_000_000
-    let streamReconnectMaxDelayNanoseconds: UInt64 = 8_000_000_000
     let latestAppReleaseRefreshInterval: TimeInterval = 6 * 60 * 60
     let latestAppReleaseRetryInterval: TimeInterval = 30 * 60
+    let networkOfflineStopDebounceNanoseconds: UInt64 = 20_000_000_000
+    let networkOnlineStartDebounceNanoseconds: UInt64 = 8_000_000_000
+    let networkWakeRecoveryDelayNanoseconds: UInt64 = 15_000_000_000
     // DRY: shared defaults for latency/provider healthcheck endpoints.
     let defaultHealthcheckURL = "https://www.gstatic.com/generate_204"
     let defaultHealthcheckTimeoutMilliseconds = 5000
     var mediumFrequencyIntervalNanoseconds: UInt64 = 4_000_000_000
     var lowFrequencyIntervalNanoseconds: UInt64 = 20_000_000_000
-    var currentConnectionsStreamIntervalMilliseconds: Int?
     var clashmenuLogFileURL: URL?
     var mihomoLogFileURL: URL?
     var clashmenuLogStore: AppLogStore?
@@ -372,8 +290,11 @@ final class AppState: ObservableObject {
     var lastCoreFailureAlertAt: Date?
     let coreFailureAlertThrottleInterval: TimeInterval = 20
     var networkReachabilityStatus: NetworkReachabilityStatus = .unknown
+    var networkReachabilitySuppressedUntil: Date?
     var shouldResumeCoreAfterNetworkRecovery = false
     var isNetworkReachabilityMonitoring = false
+    var isSystemSleeping = false
+    var systemSleepWakeObserver: SystemSleepWakeObserver?
     var pendingCoreFeatureRecoveryState: CoreFeatureRecoveryState?
     var deferredEditableSettingsOverlay: (snapshot: EditableSettingsSnapshot, syncingKey: String)?
     var remoteConfigSources: [String: String] = [:]
@@ -424,7 +345,6 @@ final class AppState: ObservableObject {
                     let message = self?.tr("log.process.terminated", code) ?? ""
                     self?.statusText = "Failed"
                     self?.apiStatus = .failed
-                    self?.resetTrafficPresentation()
                     self?.appendLog(level: "error", message: message)
                     self?.cancelPolling()
                     if self?.coreActionState == .idle, let self, !message.isEmpty {
@@ -485,6 +405,7 @@ final class AppState: ObservableObject {
             }
         }
 
+        self.configureSystemSleepWakeObservationIfNeeded()
         self.updateNetworkReachabilityMonitoringState()
         self.refreshMenuBarDisplaySnapshotIfNeeded()
     }
@@ -492,18 +413,12 @@ final class AppState: ObservableObject {
     deinit {
         networkAutoStopTask?.cancel()
         networkAutoStartTask?.cancel()
+        networkWakeRecoveryTask?.cancel()
         deferredEditableSettingsOverlayTask?.cancel()
         configDirectoryMonitorTask?.cancel()
-        trafficDecodeTask?.cancel()
         mihomoLogFlushTask?.cancel()
         mediumFrequencyTask?.cancel()
         lowFrequencyTask?.cancel()
-        for task in streamReceiveTasks.values {
-            task.cancel()
-        }
-        for webSocketTask in streamWebSocketTasks.values {
-            webSocketTask.cancel(with: .goingAway, reason: nil)
-        }
         providerRefreshTask?.cancel()
     }
 

@@ -47,9 +47,6 @@ enum Endpoint: Sendable {
     private static let ruleProvidersPath = "/providers/rules"
 
     case version
-    case traffic
-    case memory
-    case logs(level: String?)
 
     case getConfigs
     case putConfigs(force: Bool)
@@ -70,23 +67,21 @@ enum Endpoint: Sendable {
     case ruleProviders
     case updateRuleProvider(name: String)
 
-    case connections(interval: Int?)
     case closeAllConnections
-    case closeConnection(id: String)
     case flushFakeIPCache
     case flushDNSCache
 
     var method: HTTPMethod {
         switch self {
-        case .version, .traffic, .memory, .logs, .getConfigs, .groupDelay, .proxies, .proxyProviders,
+        case .version, .getConfigs, .groupDelay, .proxies, .proxyProviders,
              .proxyProvider, .proxyProviderHealthcheck, .proxyProviderProxyHealthcheck, .rules,
-             .ruleProviders, .connections:
+             .ruleProviders:
             .get
         case .putConfigs, .switchProxy, .updateProxyProvider, .updateRuleProvider:
             .put
         case .patchConfigs:
             .patch
-        case .closeAllConnections, .closeConnection:
+        case .closeAllConnections:
             .delete
         case .flushFakeIPCache, .flushDNSCache:
             .post
@@ -96,9 +91,6 @@ enum Endpoint: Sendable {
     var path: String {
         switch self {
         case .version: "/version"
-        case .traffic: "/traffic"
-        case .memory: "/memory"
-        case .logs: "/logs"
         case .getConfigs, .putConfigs, .patchConfigs: "/configs"
         case let .groupDelay(name, _, _): "/group/\(name.urlPathSegmentEscaped)/delay"
         case .proxies: "/proxies"
@@ -116,8 +108,7 @@ enum Endpoint: Sendable {
             Self.ruleProvidersPath
         case let .updateRuleProvider(name):
             "\(Self.ruleProvidersPath)/\(name.urlPathSegmentEscaped)"
-        case .connections, .closeAllConnections: "/connections"
-        case let .closeConnection(id): "/connections/\(id.urlPathSegmentEscaped)"
+        case .closeAllConnections: "/connections"
         case .flushFakeIPCache: "/cache/fakeip/flush"
         case .flushDNSCache: "/cache/dns/flush"
         }
@@ -125,16 +116,12 @@ enum Endpoint: Sendable {
 
     var queryItems: [URLQueryItem] {
         switch self {
-        case let .logs(level):
-            self.optionalQueryItem(name: "level", value: level)
         case let .putConfigs(force):
             force ? [URLQueryItem(name: "force", value: "true")] : []
         case let .groupDelay(_, url, timeout):
             self.healthcheckQueryItems(url: url, timeout: timeout)
         case let .proxyProviderHealthcheck(_, url, timeout), let .proxyProviderProxyHealthcheck(_, _, url, timeout):
             self.healthcheckQueryItems(url: url, timeout: timeout)
-        case let .connections(interval):
-            self.optionalQueryItem(name: "interval", value: interval.map(String.init))
         default:
             []
         }
@@ -248,26 +235,6 @@ final class MihomoAPIClient: MihomoAPITransporting, @unchecked Sendable {
         _ = try await self.send(endpoint)
     }
 
-    func makeTrafficWebSocketTask() throws -> URLSessionWebSocketTask {
-        let request = try buildWebSocketRequest(for: .traffic)
-        return self.session.webSocketTask(with: request)
-    }
-
-    func makeMemoryWebSocketTask() throws -> URLSessionWebSocketTask {
-        let request = try buildWebSocketRequest(for: .memory)
-        return self.session.webSocketTask(with: request)
-    }
-
-    func makeConnectionsWebSocketTask(interval: Int? = nil) throws -> URLSessionWebSocketTask {
-        let request = try buildWebSocketRequest(for: .connections(interval: interval))
-        return self.session.webSocketTask(with: request)
-    }
-
-    func makeLogsWebSocketTask(level: String? = nil) throws -> URLSessionWebSocketTask {
-        let request = try buildWebSocketRequest(for: .logs(level: level))
-        return self.session.webSocketTask(with: request)
-    }
-
     private func send(_ endpoint: Endpoint) async throws -> Data {
         var lastError: Error?
 
@@ -307,14 +274,6 @@ final class MihomoAPIClient: MihomoAPITransporting, @unchecked Sendable {
         request.timeoutInterval = endpoint.timeoutInterval
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         return request
-    }
-
-    private func buildWebSocketRequest(for endpoint: Endpoint) throws -> URLRequest {
-        let (controller, secret) = self.lock.withLock {
-            (self.controller, self.secret)
-        }
-        let url = try endpointURL(for: endpoint, controller: controller, webSocket: true)
-        return self.authorizedRequest(url: url, secret: secret)
     }
 
     private func endpointURL(for endpoint: Endpoint, controller: String, webSocket: Bool) throws -> URL {

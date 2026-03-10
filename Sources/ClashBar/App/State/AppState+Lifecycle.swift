@@ -102,7 +102,6 @@ extension AppState {
         cancelPolling()
         statusText = "Stopped"
         apiStatus = .unknown
-        resetTrafficPresentation()
     }
 
     func restartCore(trigger: ProviderRefreshTrigger = .restart) async {
@@ -341,7 +340,6 @@ extension AppState {
     {
         statusText = "Running"
         apiStatus = .healthy
-        resetTrafficPresentation()
         ensureAPIClient()
         startPolling()
         await refreshFromAPI(includeSlowCalls: true)
