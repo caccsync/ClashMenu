@@ -36,6 +36,11 @@ ClashMenu 是基于 [ClashBar](https://github.com/Sitoi/ClashBar) 的一款面�
 
 具体项目说明请参考 [ClashBar](https://github.com/Sitoi/ClashBar) 
 
+## 🤖 项目构建
+
+本项目不直接提供构建物下载，请clone源码后自行构建。
+`Script/build.sh`
+默认根据本机环境进行构建，也可根据脚本内容自定义构建物架构（arm/intel)。
 
 ## 🔄 内核目录与切换
 
