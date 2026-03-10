@@ -31,7 +31,6 @@ extension AppState {
         let didChangeController = controller != clientController
         if didChangeController {
             controller = clientController
-            controllerUIURL = makeControllerUIURL(clientController)
         }
         if didChangeController || apiClient == nil {
             ensureAPIClient()

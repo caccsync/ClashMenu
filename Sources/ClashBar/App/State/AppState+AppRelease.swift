@@ -7,7 +7,7 @@ extension AppState {
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
         if let short, !short.isEmpty { return short }
         if let build, !build.isEmpty { return build }
-        return "0.0.1"
+        return "0.0.11"
     }
 
     var availableAppUpdate: AppReleaseInfo? {

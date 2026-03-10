@@ -461,6 +461,11 @@ extension AppState {
         return "clash.meta/\(version)"
     }
 
+    func resolvedMihomoVersionForDisplay() async -> String {
+        let version = await resolvedMihomoVersionForSubscriptionUserAgent()
+        return version == "unknown" ? "-" : version
+    }
+
     private func resolvedMihomoVersionForSubscriptionUserAgent() async -> String {
         if let current = normalizedMihomoVersionForUserAgent(self.version) {
             return current

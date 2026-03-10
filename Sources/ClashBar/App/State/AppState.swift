@@ -11,7 +11,6 @@ final class AppState: ObservableObject {
     @Published var version: String = "-"
     @Published var controller: String = "127.0.0.1:9090"
     @Published var externalControllerDisplay: String = "127.0.0.1:9090"
-    @Published var controllerUIURL: String = "http://127.0.0.1:9090/ui"
     @Published var controllerSecret: String?
 
     @Published var traffic = TrafficSnapshot(up: 0, down: 0) {
@@ -455,7 +454,6 @@ final class AppState: ObservableObject {
             }
             ensureLogFileExists()
             seedBundledConfigIfNeeded()
-            seedBundledDashboardIfNeeded()
         } catch {
             appendLog(level: "error", message: tr("log.working_dir_init_failed", error.localizedDescription))
         }
@@ -463,7 +461,6 @@ final class AppState: ObservableObject {
         restoreLastSuccessfulConfigIfAvailable()
         self.remoteConfigSources = loadPersistedRemoteConfigSources()
         pruneRemoteConfigSourcesIfNeeded()
-        self.controllerUIURL = makeControllerUIURL(self.controller)
         if let persisted = loadPersistedEditableSettingsSnapshot() {
             applyEditableSettingsSnapshotToUI(persisted)
             self.preserveLocalSettingsOnNextSync = true

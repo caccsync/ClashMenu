@@ -164,9 +164,11 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     private func refreshRuntimeMenu() {
         let running = self.appState.isRuntimeRunning
-        self.runtimeStatusItem.attributedTitle = self.statusAttributedTitle(
-            title: running ? self.local("运行中", "Running") : self.local("已停止", "Stopped"),
-            color: running ? .systemGreen : .secondaryLabelColor)
+        self.runtimeStatusItem.attributedTitle = nil
+        self.runtimeStatusItem.title = running ? self.local("运行中", "Running") : self.local("已停止", "Stopped")
+        self.runtimeStatusItem.state = running ? .on : .off
+        self.runtimeStatusItem.onStateImage = self.runtimeIndicatorImage(color: .systemGreen)
+        self.runtimeStatusItem.offStateImage = self.runtimeIndicatorImage(color: .secondaryLabelColor)
 
         self.startItem.title = self.local("启动", "Start")
         self.stopItem.title = self.tr("ui.action.stop")
@@ -206,7 +208,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     private func refreshStaticTitlesIfNeeded() {
         self.configItem.title = self.local("配置文件", "Configurations")
-        self.openDashboardItem.title = self.local("打开 Dashboard", "Open Dashboard")
+        self.openDashboardItem.title = self.local("控制面板", "Dashboard")
         self.settingsItem.title = self.local("设置", "Settings")
         self.aboutItem.title = self.local("关于", "About")
         self.quitItem.title = self.tr("ui.action.quit")
@@ -252,20 +254,17 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
         return item
     }
 
-    private func statusAttributedTitle(title: String, color: NSColor) -> NSAttributedString {
-        let result = NSMutableAttributedString(
-            string: "● ",
-            attributes: [
-                .foregroundColor: color,
-                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
-            ])
-        result.append(NSAttributedString(
-            string: title,
-            attributes: [
-                .foregroundColor: NSColor.labelColor,
-                .font: NSFont.menuFont(ofSize: NSFont.systemFontSize),
-            ]))
-        return result
+    private func runtimeIndicatorImage(color: NSColor) -> NSImage {
+        let size = NSSize(width: 12, height: 10)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        let rect = NSRect(x: 1, y: 1, width: 8, height: 8)
+        color.setFill()
+        NSBezierPath(ovalIn: rect).fill()
+        image.isTemplate = false
+        return image
     }
 
     private func tr(_ key: String) -> String {
@@ -405,7 +404,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func openDashboard(_ sender: Any?) {
-        guard let url = URL(string: "http://127.0.0.1:9090/ui/zashboard"),
+        guard let url = self.appState.controllerDashboardURL(),
               NSWorkspace.shared.open(url)
         else {
             self.presentError(self.local("无法打开 Dashboard。", "Unable to open Dashboard."))
@@ -420,22 +419,27 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func showAbout(_ sender: Any?) {
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = self.local("关于 ClashMenu", "About ClashMenu")
-        alert.informativeText = [
-            "ClashMenu \(self.appVersionString())",
-            "Mihomo \(self.appState.version)",
-            "Copyright (c) ClashMenu",
-        ].joined(separator: "\n")
-        alert.addButton(withTitle: self.tr("ui.action.ok"))
-        alert.addButton(withTitle: self.local("打开 GitHub", "Open GitHub"))
-        self.appState.prepareModalWindowPresentation()
-        self.appState.configureModalWindow(alert.window)
-        if alert.runModal() == .alertSecondButtonReturn,
-           let url = URL(string: "https://github.com/f1ynng8/ClashMenu/")
-        {
-            _ = NSWorkspace.shared.open(url)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let mihomoVersion = await self.appState.resolvedMihomoVersionForDisplay()
+
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = self.local("关于 ClashMenu", "About ClashMenu")
+            alert.informativeText = [
+                "ClashMenu \(self.appVersionString())",
+                "Mihomo \(mihomoVersion)",
+                "Copyright (c) ClashMenu",
+            ].joined(separator: "\n")
+            alert.addButton(withTitle: self.tr("ui.action.ok"))
+            alert.addButton(withTitle: self.local("打开 GitHub", "Open GitHub"))
+            self.appState.prepareModalWindowPresentation()
+            self.appState.configureModalWindow(alert.window)
+            if alert.runModal() == .alertSecondButtonReturn,
+               let url = URL(string: "https://github.com/f1ynng8/ClashMenu/")
+            {
+                _ = NSWorkspace.shared.open(url)
+            }
         }
     }
 

@@ -1,3 +1,5 @@
+import Foundation
+
 @MainActor
 extension AppState {
     @discardableResult
@@ -128,7 +130,7 @@ extension AppState {
         return host
     }
 
-    func makeControllerUIURL(_ controller: String) -> String {
-        "\(normalizedControllerAddress(controller))/ui"
+    func controllerDashboardURL() -> URL? {
+        URL(string: "\(normalizedControllerAddress(controller))/ui")
     }
 }

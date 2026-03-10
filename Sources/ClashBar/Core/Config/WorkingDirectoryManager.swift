@@ -31,10 +31,6 @@ struct WorkingDirectoryManager {
         self.rootDirectoryURL.appendingPathComponent("core", isDirectory: true)
     }
 
-    var uiDirectoryURL: URL {
-        self.rootDirectoryURL.appendingPathComponent("ui", isDirectory: true)
-    }
-
     var managedMihomoBinaryURL: URL {
         self.coreDirectoryURL.appendingPathComponent("mihomo", isDirectory: false)
     }
@@ -46,7 +42,6 @@ struct WorkingDirectoryManager {
         try self.createDirectoryIfNeeded(self.logsDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.stateDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.coreDirectoryURL, fileManager: fileManager)
-        try self.createDirectoryIfNeeded(self.uiDirectoryURL, fileManager: fileManager)
     }
 
     func normalizeAndValidateWithinRoot(_ url: URL, mustBeDirectory: Bool? = nil) throws -> URL {

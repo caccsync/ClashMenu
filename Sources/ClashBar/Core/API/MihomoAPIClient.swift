@@ -142,6 +142,11 @@ enum Endpoint: Sendable {
 
     var body: Data? {
         switch self {
+        case .putConfigs:
+            try? JSONSerialization.data(withJSONObject: [
+                "path": "",
+                "payload": "",
+            ])
         case let .patchConfigs(body):
             try? JSONSerialization.data(withJSONObject: body.mapValues(\.foundationObject))
         case let .switchProxy(_, target):

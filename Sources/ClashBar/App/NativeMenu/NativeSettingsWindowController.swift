@@ -15,6 +15,9 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let logLevelLabel = NSTextField(labelWithString: "")
     private let logLevelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let generalSectionLabel = NSTextField(labelWithString: "")
+    private let systemSectionLabel = NSTextField(labelWithString: "")
+    private let advancedSectionLabel = NSTextField(labelWithString: "")
     private let flushFakeIPButton = NSButton(title: "", target: nil, action: nil)
     private let flushDNSButton = NSButton(title: "", target: nil, action: nil)
     private let openCoreDirectoryButton = NSButton(title: "", target: nil, action: nil)
@@ -26,7 +29,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     init(appState: AppState) {
         self.appState = appState
 
-        let contentRect = NSRect(x: 0, y: 0, width: 340, height: 420)
+        let contentRect = NSRect(x: 0, y: 0, width: 312, height: 430)
         let window = NSWindow(
             contentRect: contentRect,
             styleMask: [.titled, .closable],
@@ -73,10 +76,11 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = contentView
-        window.contentMinSize = NSSize(width: 340, height: 380)
+        window.contentMinSize = NSSize(width: 312, height: 390)
 
         let stack = NSStackView()
         stack.orientation = .vertical
+        stack.alignment = .leading
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(stack)
@@ -88,6 +92,18 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
             stack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -20),
         ])
 
+        let generalSection = self.makeSection(label: self.generalSectionLabel)
+        let generalContent = self.makeSectionContentStack()
+        let languageRow = self.makePopupRow(label: self.languageLabel, popup: self.languagePopup)
+        let logLevelRow = self.makePopupRow(label: self.logLevelLabel, popup: self.logLevelPopup)
+        generalContent.addArrangedSubview(languageRow)
+        generalContent.addArrangedSubview(logLevelRow)
+        generalSection.addArrangedSubview(generalContent)
+        stack.addArrangedSubview(generalSection)
+        stack.setCustomSpacing(18, after: generalSection)
+
+        let systemSection = self.makeSection(label: self.systemSectionLabel)
+        let systemContent = self.makeSectionContentStack()
         [
             self.launchAtLoginButton,
             self.autoStartCoreButton,
@@ -98,8 +114,13 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         ].forEach { button in
             button.setButtonType(.switch)
             button.target = self
-            stack.addArrangedSubview(button)
+            button.alignment = .left
+            button.setContentHuggingPriority(.required, for: .horizontal)
+            systemContent.addArrangedSubview(button)
         }
+        systemSection.addArrangedSubview(systemContent)
+        stack.addArrangedSubview(systemSection)
+        stack.setCustomSpacing(18, after: systemSection)
 
         self.launchAtLoginButton.action = #selector(self.toggleLaunchAtLogin(_:))
         self.autoStartCoreButton.action = #selector(self.toggleAutoStartCore(_:))
@@ -108,23 +129,13 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.ipv6Button.action = #selector(self.toggleIPv6(_:))
         self.tcpConcurrentButton.action = #selector(self.toggleTCPConcurrent(_:))
 
-        let languageRow = self.makePopupRow(label: self.languageLabel, popup: self.languagePopup)
-        let logLevelRow = self.makePopupRow(label: self.logLevelLabel, popup: self.logLevelPopup)
-        stack.addArrangedSubview(languageRow)
-        stack.addArrangedSubview(logLevelRow)
-
         self.languagePopup.target = self
         self.languagePopup.action = #selector(self.changeLanguage(_:))
         self.logLevelPopup.target = self
         self.logLevelPopup.action = #selector(self.changeLogLevel(_:))
 
-        let divider = NSBox()
-        divider.boxType = .separator
-        stack.addArrangedSubview(divider)
-
-        let actionsRow = NSStackView()
-        actionsRow.orientation = .vertical
-        actionsRow.spacing = 8
+        let advancedSection = self.makeSection(label: self.advancedSectionLabel)
+        let actionsRow = self.makeSectionContentStack()
         self.flushFakeIPButton.bezelStyle = .rounded
         self.flushDNSButton.bezelStyle = .rounded
         self.openCoreDirectoryButton.bezelStyle = .rounded
@@ -137,22 +148,61 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         actionsRow.addArrangedSubview(self.flushFakeIPButton)
         actionsRow.addArrangedSubview(self.flushDNSButton)
         actionsRow.addArrangedSubview(self.openCoreDirectoryButton)
-        stack.addArrangedSubview(actionsRow)
+        advancedSection.addArrangedSubview(actionsRow)
+        stack.addArrangedSubview(advancedSection)
     }
 
     private func makePopupRow(label: NSTextField, popup: NSPopUpButton) -> NSView {
         label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.setContentHuggingPriority(.required, for: .horizontal)
         popup.translatesAutoresizingMaskIntoConstraints = false
         popup.setContentHuggingPriority(.required, for: .horizontal)
         popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 110).isActive = true
-        popup.widthAnchor.constraint(lessThanOrEqualToConstant: 140).isActive = true
+        popup.widthAnchor.constraint(lessThanOrEqualToConstant: 128).isActive = true
 
-        let row = NSStackView(views: [label, popup])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.distribution = .fill
-        row.spacing = 12
-        return row
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        label.translatesAutoresizingMaskIntoConstraints = false
+        popup.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+        container.addSubview(popup)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            label.centerYAnchor.constraint(equalTo: popup.centerYAnchor),
+            popup.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
+            popup.topAnchor.constraint(equalTo: container.topAnchor),
+            popup.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            popup.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+        ])
+
+        return container
+    }
+
+    private func makeSection(label: NSTextField) -> NSStackView {
+        let section = NSStackView()
+        section.orientation = .vertical
+        section.alignment = .leading
+        section.spacing = 8
+
+        label.font = .systemFont(ofSize: 13, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        section.addArrangedSubview(label)
+
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        separator.widthAnchor.constraint(equalToConstant: 272).isActive = true
+        section.addArrangedSubview(separator)
+        return section
+    }
+
+    private func makeSectionContentStack() -> NSStackView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        return stack
     }
 
     private func bindState() {
@@ -185,6 +235,9 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     private func syncLocalizedText() {
         guard let window else { return }
         window.title = self.local("设置", "Settings")
+        self.generalSectionLabel.stringValue = self.local("通用设置", "General")
+        self.systemSectionLabel.stringValue = self.local("系统设置", "System")
+        self.advancedSectionLabel.stringValue = self.local("高级操作", "Advanced")
         self.launchAtLoginButton.title = self.tr("ui.settings.launch_at_login")
         self.autoStartCoreButton.title = self.tr("ui.settings.auto_start_core")
         self.autoManageCoreButton.title = self.tr("ui.settings.auto_core_network_recovery")

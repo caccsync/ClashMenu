@@ -57,7 +57,7 @@ extension MenuBarRoot {
                     }
 
                     HStack(spacing: MenuBarLayoutTokens.space6) {
-                        self.headerControllerLink(
+                        self.headerMetaLabel(
                             symbol: "network",
                             text: appState.externalControllerDisplay)
                         if appState.isExternalControllerWildcardIPv4 {
@@ -110,64 +110,12 @@ extension MenuBarRoot {
         .foregroundStyle(nativeSecondaryLabel)
     }
 
-    @ViewBuilder
-    func headerControllerLink(symbol: String, text: String) -> some View {
-        if let url = makeMetaCubeXDSetupURL(
-            controller: appState.controller,
-            secret: appState.controllerSecret)
-        {
-            Link(destination: url) {
-                self.headerMetaLabel(symbol: symbol, text: text)
-            }
-            .buttonStyle(.plain)
-            .help(url.absoluteString)
-        } else {
-            self.headerMetaLabel(symbol: symbol, text: text)
-        }
-    }
-
     var headerControllerWarningIcon: some View {
         Image(systemName: "exclamationmark.triangle.fill")
             .font(.app(size: MenuBarLayoutTokens.FontSize.caption, weight: .semibold))
             .foregroundStyle(nativeWarning)
             .help("external-controller is 0.0.0.0 and can be accessed from your LAN.")
             .accessibilityLabel("Warning: external-controller is bound to 0.0.0.0")
-    }
-
-    func makeMetaCubeXDSetupURL(controller: String, secret: String?) -> URL? {
-        guard let endpoint = parseControllerEndpoint(controller) else { return nil }
-
-        var query = URLComponents()
-        var items: [URLQueryItem] = [
-            URLQueryItem(name: "hostname", value: endpoint.host),
-            URLQueryItem(name: "port", value: "\(endpoint.port)"),
-            URLQueryItem(name: "http", value: endpoint.useHTTP ? "true" : "false"),
-        ]
-        if let trimmedSecret = secret.trimmedNonEmpty {
-            items.append(URLQueryItem(name: "secret", value: trimmedSecret))
-        }
-        query.queryItems = items
-
-        guard let encodedQuery = query.percentEncodedQuery else { return nil }
-        return URL(string: "https://metacubexd.pages.dev/#/setup?\(encodedQuery)")
-    }
-
-    func parseControllerEndpoint(_ raw: String) -> (host: String, port: Int, useHTTP: Bool)? {
-        let trimmed = raw.trimmed
-        guard !trimmed.isEmpty else { return nil }
-
-        let normalized = trimmed.contains("://") ? trimmed : "http://\(trimmed)"
-        guard let components = URLComponents(string: normalized),
-              let host = components.host,
-              !host.isEmpty
-        else {
-            return nil
-        }
-
-        let scheme = components.scheme?.lowercased() ?? "http"
-        let useHTTP = scheme != "https"
-        let fallbackPort = useHTTP ? 80 : 443
-        return (host: host, port: components.port ?? fallbackPort, useHTTP: useHTTP)
     }
 
     func compactTopIcon(

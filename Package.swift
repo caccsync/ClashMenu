@@ -24,7 +24,6 @@ let package = Package(
                 .copy("Resources/bin"),
                 .copy("Resources/Brand/clashbar-icon.png"),
                 .copy("Resources/ConfigTemplates/ClashMenu.yaml"),
-                .copy("Resources/zashboard"),
                 .process("Resources/Localization"),
             ]),
         .executableTarget(
