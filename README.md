@@ -23,7 +23,7 @@
 
 </div>
 
-![ClashMenu](./imgs/clashmenu.svg)
+![ClashMenu](./imgs/clashmenu.png)
 
 ---
 
