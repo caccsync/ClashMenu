@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${APP_NAME:-ClashMenu}"
 BUNDLE_ID="${BUNDLE_ID:-com.clashmenu}"
-APP_VERSION="${APP_VERSION:-0.0.15}"
+APP_VERSION="${APP_VERSION:-0.0.16}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 TARGET_ARCH="${TARGET_ARCH:-}"
 PREPROCESS_DIR="${PREPROCESS_DIR:-$ROOT/dist/preprocess}"

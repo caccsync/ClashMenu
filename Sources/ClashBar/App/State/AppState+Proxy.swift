@@ -52,7 +52,7 @@ extension AppState {
 
     func copyProxyCommand() {
         let ports = currentSystemProxyPortsFromState()
-        let httpPort = ports.httpPort ?? ports.socksPort ?? effectiveMixedPort()
+        let httpPort = ports.httpPort ?? ports.socksPort ?? 7890
         let socksPort = ports.socksPort ?? ports.httpPort ?? httpPort
         let script = "export https_proxy=http://127.0.0.1:\(httpPort) " +
             "http_proxy=http://127.0.0.1:\(httpPort) " +

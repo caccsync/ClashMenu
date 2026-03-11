@@ -43,7 +43,7 @@ final class SystemSleepWakeObserver: NSObject {
 @MainActor
 extension AppState {
     func enforceNetworkManagedCorePolicyIfNeeded() {
-        guard self.autoManageCoreOnNetworkChangeEnabled else { return }
+        guard self.autoStopCoreOnNetworkDisconnectEnabled else { return }
         guard !self.isNetworkAutomationSuppressed else { return }
 
         switch self.networkReachabilityStatus {
@@ -57,7 +57,7 @@ extension AppState {
     }
 
     func updateNetworkReachabilityMonitoringState() {
-        if self.autoManageCoreOnNetworkChangeEnabled {
+        if self.autoStopCoreOnNetworkDisconnectEnabled || self.autoStopCoreOnSystemSleepEnabled {
             self.startNetworkReachabilityMonitoringIfNeeded()
             self.enforceNetworkManagedCorePolicyIfNeeded()
         } else {
@@ -103,6 +103,8 @@ extension AppState {
             self.networkReachabilityStatus = .unknown
             self.networkReachabilitySuppressedUntil = nil
             self.isSystemSleeping = false
+            self.resolveRuntimeStopReason(.networkLoss)
+            self.resolveRuntimeStopReason(.systemSleep)
         }
     }
 
@@ -110,7 +112,7 @@ extension AppState {
         let previous = self.networkReachabilityStatus
         self.networkReachabilityStatus = status
 
-        guard self.autoManageCoreOnNetworkChangeEnabled else { return }
+        guard self.autoStopCoreOnNetworkDisconnectEnabled else { return }
         guard previous != status else { return }
         guard !self.isNetworkAutomationSuppressed else { return }
 
@@ -125,17 +127,33 @@ extension AppState {
     }
 
     fileprivate func handleSystemWillSleep() {
-        guard self.autoManageCoreOnNetworkChangeEnabled else { return }
+        guard self.autoStopCoreOnSystemSleepEnabled else { return }
         guard !self.isSystemSleeping else { return }
 
         self.isSystemSleeping = true
         self.networkReachabilitySuppressedUntil = nil
         self.cancelNetworkAutomationTasks(resetRecoveryIntent: false)
         self.appendLog(level: "info", message: "系统进入休眠，已暂停网络变化自动管理。")
+
+        guard self.isRuntimeRunning else {
+            self.runtimeStopReasons.insert(.systemSleep)
+            return
+        }
+
+        self.registerManagedCoreStop(reason: .systemSleep)
+        self.networkWakeRecoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard await self.waitUntilCoreActionIdleIfNeeded() else { return }
+            guard self.isSystemSleeping else { return }
+            guard self.isRuntimeRunning else { return }
+
+            self.appendLog(level: "info", message: "系统休眠中，正在停止内核。")
+            await self.stopCore(trigger: .systemSleep)
+        }
     }
 
     fileprivate func handleSystemDidWake() {
-        guard self.autoManageCoreOnNetworkChangeEnabled else { return }
+        guard self.autoStopCoreOnSystemSleepEnabled else { return }
 
         self.isSystemSleeping = false
         self.cancelNetworkAutomationTasks(resetRecoveryIntent: false)
@@ -151,10 +169,19 @@ extension AppState {
                 return
             }
 
-            guard self.autoManageCoreOnNetworkChangeEnabled else { return }
+            guard self.autoStopCoreOnSystemSleepEnabled else { return }
             guard !self.isSystemSleeping else { return }
 
             self.networkReachabilitySuppressedUntil = nil
+            self.resolveRuntimeStopReason(.systemSleep)
+            if self.networkReachabilityStatus == .online, self.canAutoResumeManagedRuntime, !self.isRuntimeRunning {
+                self.appendLog(level: "info", message: "系统唤醒恢复：正在重新启动内核。")
+                await self.startCore(trigger: .systemWakeRecovery)
+                if !self.isRuntimeRunning {
+                    self.runtimeStopReasons.insert(.systemSleep)
+                }
+                return
+            }
             self.enforceNetworkManagedCorePolicyIfNeeded()
         }
     }
@@ -168,14 +195,14 @@ extension AppState {
         self.networkWakeRecoveryTask = nil
 
         if resetRecoveryIntent {
-            self.shouldResumeCoreAfterNetworkRecovery = false
+            self.shouldAutoResumeManagedRuntime = false
         }
     }
 
     private func waitUntilCoreActionIdleIfNeeded() async -> Bool {
         for _ in 0..<40 {
             if Task.isCancelled { return false }
-            guard self.autoManageCoreOnNetworkChangeEnabled else { return false }
+            guard self.autoStopCoreOnNetworkDisconnectEnabled || self.autoStopCoreOnSystemSleepEnabled else { return false }
             if !self.isCoreActionProcessing {
                 return true
             }
@@ -202,7 +229,7 @@ extension AppState {
                 return
             }
 
-            guard self.autoManageCoreOnNetworkChangeEnabled else { return }
+            guard self.autoStopCoreOnNetworkDisconnectEnabled else { return }
             guard !self.isNetworkAutomationSuppressed else { return }
             guard self.networkReachabilityStatus == .offline else { return }
             guard self.isRuntimeRunning else { return }
@@ -210,7 +237,7 @@ extension AppState {
             guard self.networkReachabilityStatus == .offline else { return }
             guard self.isRuntimeRunning else { return }
 
-            self.shouldResumeCoreAfterNetworkRecovery = true
+            self.registerManagedCoreStop(reason: .networkLoss)
             self.appendLog(level: "warning", message: self.tr("log.network.offline_auto_stop"))
             await self.stopCore(trigger: .networkLoss)
         }
@@ -230,27 +257,27 @@ extension AppState {
                 return
             }
 
-            guard self.autoManageCoreOnNetworkChangeEnabled else { return }
+            guard self.autoStopCoreOnNetworkDisconnectEnabled else { return }
             guard !self.isNetworkAutomationSuppressed else { return }
             guard self.networkReachabilityStatus == .online else { return }
-            guard self.shouldResumeCoreAfterNetworkRecovery else { return }
+            guard self.shouldAutoResumeManagedRuntime else { return }
             guard await self.waitUntilCoreActionIdleIfNeeded() else { return }
             guard self.networkReachabilityStatus == .online else { return }
-            guard self.shouldResumeCoreAfterNetworkRecovery else { return }
+            self.resolveRuntimeStopReason(.networkLoss)
 
             if self.isRuntimeRunning {
                 if self.pendingCoreFeatureRecoveryState?.shouldRecoverAnyFeature == true {
                     await self.restoreCoreFeaturesAfterStartupIfNeeded()
                 }
-                self.shouldResumeCoreAfterNetworkRecovery = false
+                self.shouldAutoResumeManagedRuntime = false
                 return
             }
 
-            self.shouldResumeCoreAfterNetworkRecovery = false
+            guard self.canAutoResumeManagedRuntime else { return }
             self.appendLog(level: "info", message: self.tr("log.network.online_auto_start"))
             await self.startCore(trigger: .networkRecovery)
             if !self.isRuntimeRunning {
-                self.shouldResumeCoreAfterNetworkRecovery = true
+                self.runtimeStopReasons.insert(.networkLoss)
             }
         }
     }

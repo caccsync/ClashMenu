@@ -14,7 +14,8 @@ extension AppState {
     func startCore(trigger: StartTrigger = .manual) async {
         guard !isCoreActionProcessing else { return }
         if trigger == .manual {
-            shouldResumeCoreAfterNetworkRecovery = false
+            self.runtimeStopReasons.remove(.manual)
+            self.shouldAutoResumeManagedRuntime = false
         }
         coreActionState = .starting
         defer { coreActionState = .idle }
@@ -66,6 +67,8 @@ extension AppState {
                     refreshProxyGroupsAfterBootstrap: false,
                     refreshSystemProxyBeforeOverlay: true,
                     refreshSystemProxyAfterBootstrap: false))
+            self.handleSuccessfulCoreStart(trigger: trigger)
+            self.shouldRestoreCoreOnLaunch = true
         } catch {
             let errorMessage = self.coreErrorMessage(error)
             preserveLocalSettingsOnNextSync = false
@@ -89,7 +92,9 @@ extension AppState {
     func stopCore(trigger: StopTrigger = .manual) async {
         guard !isCoreActionProcessing else { return }
         if trigger == .manual {
-            shouldResumeCoreAfterNetworkRecovery = false
+            self.runtimeStopReasons.insert(.manual)
+            self.shouldAutoResumeManagedRuntime = false
+            self.shouldRestoreCoreOnLaunch = false
         }
         let recoverySnapshotBeforeStop = self.currentCoreFeatureRecoverySnapshot()
         coreActionState = .stopping
@@ -214,7 +219,9 @@ extension AppState {
     }
 
     private func prepareForTermination() {
-        shouldResumeCoreAfterNetworkRecovery = false
+        self.shouldRestoreCoreOnLaunch = self.isRuntimeRunning || self.shouldAutoResumeManagedRuntime
+        self.runtimeStopReasons.removeAll()
+        self.shouldAutoResumeManagedRuntime = false
         stopNetworkReachabilityMonitoring(resetState: true)
         stopConfigDirectoryMonitoring()
         self.cancelDeferredEditableSettingsOverlaySync()
@@ -237,6 +244,38 @@ extension AppState {
     func normalizeMode(_ raw: String?) -> CoreMode? {
         guard let raw else { return nil }
         return CoreMode(rawValue: raw.lowercased())
+    }
+
+    func registerManagedCoreStop(reason: RuntimeStopReason) {
+        self.runtimeStopReasons.insert(reason)
+        self.runtimeStopReasons.remove(.manual)
+        self.shouldAutoResumeManagedRuntime = true
+    }
+
+    func resolveRuntimeStopReason(_ reason: RuntimeStopReason) {
+        self.runtimeStopReasons.remove(reason)
+    }
+
+    var canAutoResumeManagedRuntime: Bool {
+        guard self.shouldAutoResumeManagedRuntime else { return false }
+        guard !self.runtimeStopReasons.contains(.manual) else { return false }
+        return self.runtimeStopReasons.isEmpty
+    }
+
+    private func handleSuccessfulCoreStart(trigger: StartTrigger) {
+        switch trigger {
+        case .manual:
+            self.runtimeStopReasons.removeAll()
+            self.shouldAutoResumeManagedRuntime = false
+        case .networkRecovery:
+            self.runtimeStopReasons.remove(.networkLoss)
+            self.shouldAutoResumeManagedRuntime = false
+        case .systemWakeRecovery:
+            self.runtimeStopReasons.remove(.systemSleep)
+            self.shouldAutoResumeManagedRuntime = false
+        case .auto:
+            break
+        }
     }
 
     @discardableResult
@@ -327,9 +366,9 @@ extension AppState {
         }
     }
 
-    func attemptAutoStartIfNeeded() async {
-        if didAttemptAutoStart { return }
-        didAttemptAutoStart = true
+    func attemptLaunchStateRestoreIfNeeded() async {
+        if didAttemptLaunchStateRestore { return }
+        didAttemptLaunchStateRestore = true
         await self.startCore(trigger: .auto)
     }
 
@@ -441,7 +480,7 @@ extension AppState {
         }
         guard self.isRuntimeRunning else { return }
 
-        if self.autoManageCoreOnNetworkChangeEnabled, self.networkReachabilityStatus == .offline {
+        if self.autoStopCoreOnNetworkDisconnectEnabled, self.networkReachabilityStatus == .offline {
             return
         }
 

@@ -102,28 +102,15 @@
 "ui.network.sort.download_desc" = "下载流量高到低";
 "ui.network.sort.total_desc" = "总流量高到低";
 
-"ui.settings.auto_start_core" = "内核自启";
-"ui.settings.auto_core_network_recovery" = "断网停核";
 "ui.settings.launch_at_login" = "开机自启";
+"ui.settings.auto_stop_core_on_network_disconnect" = "网络断开时自动停止内核";
+"ui.settings.auto_stop_core_on_system_sleep" = "系统休眠时自动停止内核";
 "ui.settings.language" = "界面语言";
 "ui.settings.appearance" = "外观模式";
 "ui.settings.appearance.system" = "跟随系统";
 "ui.settings.appearance.light" = "浅色";
 "ui.settings.appearance.dark" = "深色";
-"ui.settings.allow_lan" = "允许局域网";
-"ui.settings.ipv6" = "IPv6";
-"ui.settings.tcp_concurrent" = "TCP 并发";
 "ui.settings.tun_mode" = "TUN 模式";
-"ui.settings.log_level" = "日志级别";
-"ui.settings.port.port" = "HTTP 端口";
-"ui.settings.port.socks" = "SOCKS 端口";
-"ui.settings.port.mixed" = "混合端口";
-"ui.settings.port.redir" = "重定向端口";
-"ui.settings.port.tproxy" = "TProxy 端口";
-"ui.settings.save_ports" = "保存端口";
-"ui.settings.ports_hint" = "端口修改后点击“保存端口”应用到内核配置";
-"ui.settings.ports_auto_save_hint" = "端口修改后将自动保存到内核配置";
-"ui.settings.ports_auto_saving" = "保存中...";
 
 
 "ui.language.zh_hans" = "简体中文";
@@ -148,13 +135,7 @@
 "app.primary.restart" = "重启内核";
 "app.primary.start" = "启动内核";
 
-"app.settings.error.port_range" = "%@ 端口必须在 0~65535";
-"app.settings.saved.ports" = "代理端口已保存";
-"app.settings.saved.ports_auto" = "代理端口已自动保存";
 "app.settings.saved.single_key" = "%@ 已保存";
-"app.settings.error.invalid_log_level" = "log-level 非法值: %@";
-"app.settings.error.overlay_invalid_log_level" = "设置覆盖失败: log-level 非法值 %@";
-"app.settings.error.overlay_port_range" = "设置覆盖失败: %@ 端口必须在 0~65535";
 "app.settings.error.save_failed" = "%@ 保存失败: %@";
 "app.settings.overlay_success" = "已保留设置并覆盖当前配置";
 "app.launch_at_login.error.unsupported_environment" = "仅可在 .app 包内启用开机自启，请运行打包后的应用";

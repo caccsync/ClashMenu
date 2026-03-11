@@ -12,11 +12,19 @@ enum StartTrigger {
     case manual
     case auto
     case networkRecovery
+    case systemWakeRecovery
 }
 
 enum StopTrigger {
     case manual
     case networkLoss
+    case systemSleep
+}
+
+enum RuntimeStopReason: Hashable {
+    case manual
+    case networkLoss
+    case systemSleep
 }
 
 enum CoreActionState {
@@ -24,14 +32,6 @@ enum CoreActionState {
     case starting
     case stopping
     case restarting
-}
-
-enum ConfigLogLevel: String, CaseIterable {
-    case silent
-    case error
-    case warning
-    case info
-    case debug
 }
 
 enum ConfigPatchValue: Sendable {
@@ -114,95 +114,29 @@ struct CoreFeatureRecoveryState {
 }
 
 struct EditableSettingsSnapshot: Equatable, Codable {
-    let allowLan: Bool
-    let ipv6: Bool
-    let tcpConcurrent: Bool
     let tunEnabled: Bool
-    let logLevel: String
-    let port: String
-    let socksPort: String
-    let mixedPort: String
-    let redirPort: String
-    let tproxyPort: String
 
     private enum CodingKeys: String, CodingKey {
-        case allowLan
-        case ipv6
-        case tcpConcurrent
         case tunEnabled
-        case logLevel
-        case port
-        case socksPort
-        case mixedPort
-        case redirPort
-        case tproxyPort
     }
 
     init(config: ConfigSnapshot) {
-        self.allowLan = config.allowLan ?? false
-        self.ipv6 = config.ipv6 ?? false
-        self.tcpConcurrent = config.tcpConcurrent ?? false
         self.tunEnabled = config.tunEnabled ?? false
-        self.logLevel = ConfigLogLevel(rawValue: config.logLevel ?? "")?.rawValue ?? ConfigLogLevel.info.rawValue
-        self.port = config.port.map(String.init) ?? ""
-        self.socksPort = config.socksPort.map(String.init) ?? ""
-        self.mixedPort = config.mixedPort.map(String.init) ?? ""
-        self.redirPort = config.redirPort.map(String.init) ?? ""
-        self.tproxyPort = config.tproxyPort.map(String.init) ?? ""
     }
 
-    init(
-        allowLan: Bool,
-        ipv6: Bool,
-        tcpConcurrent: Bool,
-        tunEnabled: Bool,
-        logLevel: String,
-        port: String,
-        socksPort: String,
-        mixedPort: String,
-        redirPort: String,
-        tproxyPort: String)
-    {
-        self.allowLan = allowLan
-        self.ipv6 = ipv6
-        self.tcpConcurrent = tcpConcurrent
+    init(tunEnabled: Bool) {
         self.tunEnabled = tunEnabled
-        self.logLevel = logLevel
-        self.port = port
-        self.socksPort = socksPort
-        self.mixedPort = mixedPort
-        self.redirPort = redirPort
-        self.tproxyPort = tproxyPort
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.allowLan = try container.decode(Bool.self, forKey: .allowLan)
-        self.ipv6 = try container.decode(Bool.self, forKey: .ipv6)
-        self.tcpConcurrent = try container.decodeIfPresent(Bool.self, forKey: .tcpConcurrent) ?? false
         self.tunEnabled = try container.decodeIfPresent(Bool.self, forKey: .tunEnabled) ?? false
-        self.logLevel = try container.decode(String.self, forKey: .logLevel)
-        self.port = try container.decode(String.self, forKey: .port)
-        self.socksPort = try container.decode(String.self, forKey: .socksPort)
-        self.mixedPort = try container.decode(String.self, forKey: .mixedPort)
-        self.redirPort = try container.decode(String.self, forKey: .redirPort)
-        self.tproxyPort = try container.decode(String.self, forKey: .tproxyPort)
     }
 }
 
 extension EditableSettingsSnapshot {
     func withTunEnabled(_ enabled: Bool) -> EditableSettingsSnapshot {
-        EditableSettingsSnapshot(
-            allowLan: self.allowLan,
-            ipv6: self.ipv6,
-            tcpConcurrent: self.tcpConcurrent,
-            tunEnabled: enabled,
-            logLevel: self.logLevel,
-            port: self.port,
-            socksPort: self.socksPort,
-            mixedPort: self.mixedPort,
-            redirPort: self.redirPort,
-            tproxyPort: self.tproxyPort)
+        EditableSettingsSnapshot(tunEnabled: enabled)
     }
 }
 

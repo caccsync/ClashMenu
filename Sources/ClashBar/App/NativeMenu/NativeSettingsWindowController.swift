@@ -6,17 +6,11 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     private let appState: AppState
 
     private let launchAtLoginButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
-    private let autoStartCoreButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
-    private let autoManageCoreButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
-    private let allowLanButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
-    private let ipv6Button = NSButton(checkboxWithTitle: "", target: nil, action: nil)
-    private let tcpConcurrentButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let autoStopCoreOnNetworkDisconnectButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let autoStopCoreOnSystemSleepButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let languageLabel = NSTextField(labelWithString: "")
     private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let logLevelLabel = NSTextField(labelWithString: "")
-    private let logLevelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let generalSectionLabel = NSTextField(labelWithString: "")
-    private let systemSectionLabel = NSTextField(labelWithString: "")
     private let advancedSectionLabel = NSTextField(labelWithString: "")
     private let flushFakeIPButton = NSButton(title: "", target: nil, action: nil)
     private let flushDNSButton = NSButton(title: "", target: nil, action: nil)
@@ -24,12 +18,11 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
 
     private var observers: [AnyCancellable] = []
     private var selectedLanguageMap: [Int: AppLanguage] = [:]
-    private var selectedLogLevelMap: [Int: ConfigLogLevel] = [:]
 
     init(appState: AppState) {
         self.appState = appState
 
-        let contentRect = NSRect(x: 0, y: 0, width: 312, height: 430)
+        let contentRect = NSRect(x: 0, y: 0, width: 332, height: 360)
         let window = NSWindow(
             contentRect: contentRect,
             styleMask: [.titled, .closable],
@@ -76,7 +69,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = contentView
-        window.contentMinSize = NSSize(width: 312, height: 390)
+        window.contentMinSize = NSSize(width: 332, height: 320)
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -95,44 +88,28 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let generalSection = self.makeSection(label: self.generalSectionLabel)
         let generalContent = self.makeSectionContentStack()
         let languageRow = self.makePopupRow(label: self.languageLabel, popup: self.languagePopup)
-        let logLevelRow = self.makePopupRow(label: self.logLevelLabel, popup: self.logLevelPopup)
         generalContent.addArrangedSubview(languageRow)
-        generalContent.addArrangedSubview(logLevelRow)
-        generalSection.addArrangedSubview(generalContent)
-        stack.addArrangedSubview(generalSection)
-        stack.setCustomSpacing(18, after: generalSection)
-
-        let systemSection = self.makeSection(label: self.systemSectionLabel)
-        let systemContent = self.makeSectionContentStack()
         [
             self.launchAtLoginButton,
-            self.autoStartCoreButton,
-            self.autoManageCoreButton,
-            self.allowLanButton,
-            self.ipv6Button,
-            self.tcpConcurrentButton,
+            self.autoStopCoreOnNetworkDisconnectButton,
+            self.autoStopCoreOnSystemSleepButton,
         ].forEach { button in
             button.setButtonType(.switch)
             button.target = self
             button.alignment = .left
             button.setContentHuggingPriority(.required, for: .horizontal)
-            systemContent.addArrangedSubview(button)
+            generalContent.addArrangedSubview(button)
         }
-        systemSection.addArrangedSubview(systemContent)
-        stack.addArrangedSubview(systemSection)
-        stack.setCustomSpacing(18, after: systemSection)
+        generalSection.addArrangedSubview(generalContent)
+        stack.addArrangedSubview(generalSection)
+        stack.setCustomSpacing(18, after: generalSection)
 
         self.launchAtLoginButton.action = #selector(self.toggleLaunchAtLogin(_:))
-        self.autoStartCoreButton.action = #selector(self.toggleAutoStartCore(_:))
-        self.autoManageCoreButton.action = #selector(self.toggleAutoManageCore(_:))
-        self.allowLanButton.action = #selector(self.toggleAllowLan(_:))
-        self.ipv6Button.action = #selector(self.toggleIPv6(_:))
-        self.tcpConcurrentButton.action = #selector(self.toggleTCPConcurrent(_:))
+        self.autoStopCoreOnNetworkDisconnectButton.action = #selector(self.toggleAutoStopCoreOnNetworkDisconnect(_:))
+        self.autoStopCoreOnSystemSleepButton.action = #selector(self.toggleAutoStopCoreOnSystemSleep(_:))
 
         self.languagePopup.target = self
         self.languagePopup.action = #selector(self.changeLanguage(_:))
-        self.logLevelPopup.target = self
-        self.logLevelPopup.action = #selector(self.changeLogLevel(_:))
 
         let advancedSection = self.makeSection(label: self.advancedSectionLabel)
         let actionsRow = self.makeSectionContentStack()
@@ -218,34 +195,23 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     private func refreshFromState() {
         self.syncLocalizedText()
         self.launchAtLoginButton.state = self.appState.launchAtLoginEnabled ? .on : .off
-        self.autoStartCoreButton.state = self.appState.autoStartCoreEnabled ? .on : .off
-        self.autoManageCoreButton.state = self.appState.autoManageCoreOnNetworkChangeEnabled ? .on : .off
-        self.allowLanButton.state = self.appState.settingsAllowLan ? .on : .off
-        self.ipv6Button.state = self.appState.settingsIPv6 ? .on : .off
-        self.tcpConcurrentButton.state = self.appState.settingsTCPConcurrent ? .on : .off
+        self.autoStopCoreOnNetworkDisconnectButton.state = self.appState.autoStopCoreOnNetworkDisconnectEnabled ? .on : .off
+        self.autoStopCoreOnSystemSleepButton.state = self.appState.autoStopCoreOnSystemSleepEnabled ? .on : .off
 
         for (tag, language) in self.selectedLanguageMap where language == self.appState.uiLanguage {
             self.languagePopup.selectItem(withTag: tag)
-        }
-        for (tag, level) in self.selectedLogLevelMap where level.rawValue == self.appState.settingsLogLevel {
-            self.logLevelPopup.selectItem(withTag: tag)
         }
     }
 
     private func syncLocalizedText() {
         guard let window else { return }
         window.title = self.local("设置", "Settings")
-        self.generalSectionLabel.stringValue = self.local("通用设置", "General")
-        self.systemSectionLabel.stringValue = self.local("系统设置", "System")
+        self.generalSectionLabel.stringValue = self.local("通用设置", "General Settings")
         self.advancedSectionLabel.stringValue = self.local("高级操作", "Advanced")
         self.launchAtLoginButton.title = self.tr("ui.settings.launch_at_login")
-        self.autoStartCoreButton.title = self.tr("ui.settings.auto_start_core")
-        self.autoManageCoreButton.title = self.tr("ui.settings.auto_core_network_recovery")
-        self.allowLanButton.title = self.tr("ui.settings.allow_lan")
-        self.ipv6Button.title = self.tr("ui.settings.ipv6")
-        self.tcpConcurrentButton.title = self.tr("ui.settings.tcp_concurrent")
+        self.autoStopCoreOnNetworkDisconnectButton.title = self.tr("ui.settings.auto_stop_core_on_network_disconnect")
+        self.autoStopCoreOnSystemSleepButton.title = self.tr("ui.settings.auto_stop_core_on_system_sleep")
         self.languageLabel.stringValue = self.tr("ui.settings.language")
-        self.logLevelLabel.stringValue = self.tr("ui.settings.log_level")
         self.flushFakeIPButton.title = self.local("清理 FakeIP 缓存", "Clear FakeIP Cache")
         self.flushDNSButton.title = self.local("清理 DNS 缓存", "Clear DNS Cache")
         self.openCoreDirectoryButton.title = self.tr("ui.action.open_core_directory")
@@ -264,13 +230,6 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
             self.selectedLanguageMap[index] = language
         }
 
-        self.logLevelPopup.removeAllItems()
-        self.selectedLogLevelMap.removeAll()
-        for (index, level) in ConfigLogLevel.allCases.enumerated() {
-            self.logLevelPopup.addItem(withTitle: level.rawValue)
-            self.logLevelPopup.lastItem?.tag = index
-            self.selectedLogLevelMap[index] = level
-        }
     }
 
     private func tr(_ key: String) -> String {
@@ -303,40 +262,13 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     }
 
     @objc
-    private func toggleAutoStartCore(_ sender: NSButton) {
-        self.appState.autoStartCoreEnabled = sender.state == .on
+    private func toggleAutoStopCoreOnNetworkDisconnect(_ sender: NSButton) {
+        self.appState.autoStopCoreOnNetworkDisconnectEnabled = sender.state == .on
     }
 
     @objc
-    private func toggleAutoManageCore(_ sender: NSButton) {
-        self.appState.autoManageCoreOnNetworkChangeEnabled = sender.state == .on
-    }
-
-    @objc
-    private func toggleAllowLan(_ sender: NSButton) {
-        self.applyBooleanSetting(.allowLan, from: sender)
-    }
-
-    @objc
-    private func toggleIPv6(_ sender: NSButton) {
-        self.applyBooleanSetting(.ipv6, from: sender)
-    }
-
-    @objc
-    private func toggleTCPConcurrent(_ sender: NSButton) {
-        self.applyBooleanSetting(.tcpConcurrent, from: sender)
-    }
-
-    private func applyBooleanSetting(_ setting: AppState.EditableCoreSetting, from button: NSButton) {
-        let enabled = button.state == .on
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.appState.applyEditableCoreSetting(setting, to: enabled)
-            if let message = self.appState.settingsErrorMessage {
-                self.refreshFromState()
-                self.presentError(message)
-            }
-        }
+    private func toggleAutoStopCoreOnSystemSleep(_ sender: NSButton) {
+        self.appState.autoStopCoreOnSystemSleepEnabled = sender.state == .on
     }
 
     @objc
@@ -344,19 +276,6 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         guard let language = self.selectedLanguageMap[sender.selectedTag()] else { return }
         self.appState.setUILanguage(language)
         self.refreshFromState()
-    }
-
-    @objc
-    private func changeLogLevel(_ sender: NSPopUpButton) {
-        guard let level = self.selectedLogLevelMap[sender.selectedTag()] else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.appState.applyEditableCoreSetting(.logLevel, to: level.rawValue)
-            if let message = self.appState.settingsErrorMessage {
-                self.refreshFromState()
-                self.presentError(message)
-            }
-        }
     }
 
     @objc

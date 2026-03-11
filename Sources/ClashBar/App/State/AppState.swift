@@ -64,44 +64,6 @@ final class AppState: ObservableObject {
     @Published var latestAppReleaseInfo: AppReleaseInfo?
     @Published private(set) var menuBarDisplaySnapshot = MenuBarDisplay(symbolName: "bolt.slash.circle")
 
-    @Published var settingsAllowLan: Bool = false {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
-    @Published var settingsIPv6: Bool = false {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
-    @Published var settingsTCPConcurrent: Bool = false {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
-    @Published var settingsLogLevel: String = ConfigLogLevel.info
-        .rawValue
-    {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
-    @Published var settingsPort: String = "0" {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
-    @Published var settingsSocksPort: String = "0" {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
-    @Published var settingsMixedPort: String = "7890" {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
-    @Published var settingsRedirPort: String = "0" {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
-    @Published var settingsTProxyPort: String = "0" {
-        didSet { persistEditableSettingsSnapshot() }
-    }
-
     @Published var settingsSyncingKey: String?
     @Published var settingsErrorMessage: String?
     @Published var settingsSavedMessage: String?
@@ -188,16 +150,20 @@ final class AppState: ObservableObject {
         self.isRuntimeRunning && !self.isCoreActionProcessing && !self.isTunSyncing
     }
 
-    var autoStartCoreEnabled: Bool {
-        get { self.autoStartCore }
-        set { self.autoStartCore = newValue }
+    var autoStopCoreOnNetworkDisconnectEnabled: Bool {
+        get { self.autoStopCoreOnNetworkLoss }
+        set {
+            guard self.autoStopCoreOnNetworkLoss != newValue else { return }
+            self.autoStopCoreOnNetworkLoss = newValue
+            self.updateNetworkReachabilityMonitoringState()
+        }
     }
 
-    var autoManageCoreOnNetworkChangeEnabled: Bool {
-        get { self.autoCoreControlOnNetworkChange }
+    var autoStopCoreOnSystemSleepEnabled: Bool {
+        get { self.autoStopCoreOnSystemSleep }
         set {
-            guard self.autoCoreControlOnNetworkChange != newValue else { return }
-            self.autoCoreControlOnNetworkChange = newValue
+            guard self.autoStopCoreOnSystemSleep != newValue else { return }
+            self.autoStopCoreOnSystemSleep = newValue
             self.updateNetworkReachabilityMonitoringState()
         }
     }
@@ -234,7 +200,6 @@ final class AppState: ObservableObject {
 
     var mediumFrequencyTask: Task<Void, Never>?
     var lowFrequencyTask: Task<Void, Never>?
-    var proxyPortsAutoSaveTask: Task<Void, Never>?
     var settingsFeedbackClearTask: Task<Void, Never>?
     var providerRefreshTask: Task<Void, Never>?
     var networkAutoStopTask: Task<Void, Never>?
@@ -252,8 +217,9 @@ final class AppState: ObservableObject {
     var isLatestAppReleaseCheckInFlight = false
 
     let defaults = UserDefaults.standard
-    @AppStorage("clashmenu.auto.start.core") private var autoStartCore: Bool = false
-    @AppStorage("clashmenu.auto.core.network.recovery") private var autoCoreControlOnNetworkChange: Bool = true
+    @AppStorage("clashmenu.auto.stop.core.network.loss") private var autoStopCoreOnNetworkLoss: Bool = true
+    @AppStorage("clashmenu.auto.stop.core.system.sleep") private var autoStopCoreOnSystemSleep: Bool = true
+    @AppStorage("clashmenu.core.restore_on_launch") var shouldRestoreCoreOnLaunch: Bool = false
     @AppStorage("clashmenu.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
     @AppStorage("clashmenu.system_proxy.desired") var desiredSystemProxyEnabled: Bool = false
     @AppStorage("clashmenu.tun.desired") var desiredTunEnabled: Bool = false
@@ -284,14 +250,15 @@ final class AppState: ObservableObject {
     var mihomoLogFileURL: URL?
     var clashmenuLogStore: AppLogStore?
     var mihomoLogStore: AppLogStore?
-    var didAttemptAutoStart = false
+    var didAttemptLaunchStateRestore = false
     var didCheckSystemProxyConsistencyOnLaunch = false
     var lastCoreFailureAlertKey: String?
     var lastCoreFailureAlertAt: Date?
     let coreFailureAlertThrottleInterval: TimeInterval = 20
     var networkReachabilityStatus: NetworkReachabilityStatus = .unknown
     var networkReachabilitySuppressedUntil: Date?
-    var shouldResumeCoreAfterNetworkRecovery = false
+    var runtimeStopReasons: Set<RuntimeStopReason> = []
+    var shouldAutoResumeManagedRuntime = false
     var isNetworkReachabilityMonitoring = false
     var isSystemSleeping = false
     var systemSleepWakeObserver: SystemSleepWakeObserver?
@@ -397,10 +364,10 @@ final class AppState: ObservableObject {
 
             self.startConfigDirectoryMonitoringIfNeeded()
         }
-        if startBackgroundRefresh, self.autoStartCore {
+        if startBackgroundRefresh, self.shouldRestoreCoreOnLaunch {
             if !self.shouldDeferAutoStartForMissingManagedCore() {
                 Task { [weak self] in
-                    await self?.attemptAutoStartIfNeeded()
+                    await self?.attemptLaunchStateRestoreIfNeeded()
                 }
             }
         }
