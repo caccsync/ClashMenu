@@ -12,6 +12,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let generalSectionLabel = NSTextField(labelWithString: "")
     private let advancedSectionLabel = NSTextField(labelWithString: "")
+    private let upgradeMihomoCoreButton = NSButton(title: "", target: nil, action: nil)
     private let flushFakeIPButton = NSButton(title: "", target: nil, action: nil)
     private let flushDNSButton = NSButton(title: "", target: nil, action: nil)
     private let openCoreDirectoryButton = NSButton(title: "", target: nil, action: nil)
@@ -22,7 +23,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     init(appState: AppState) {
         self.appState = appState
 
-        let contentRect = NSRect(x: 0, y: 0, width: 332, height: 360)
+        let contentRect = NSRect(x: 0, y: 0, width: 332, height: 400)
         let window = NSWindow(
             contentRect: contentRect,
             styleMask: [.titled, .closable],
@@ -69,7 +70,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = contentView
-        window.contentMinSize = NSSize(width: 332, height: 320)
+        window.contentMinSize = NSSize(width: 332, height: 360)
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -102,7 +103,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         }
         generalSection.addArrangedSubview(generalContent)
         stack.addArrangedSubview(generalSection)
-        stack.setCustomSpacing(18, after: generalSection)
+        stack.setCustomSpacing(30, after: generalSection)
 
         self.launchAtLoginButton.action = #selector(self.toggleLaunchAtLogin(_:))
         self.autoStopCoreOnNetworkDisconnectButton.action = #selector(self.toggleAutoStopCoreOnNetworkDisconnect(_:))
@@ -113,15 +114,19 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
 
         let advancedSection = self.makeSection(label: self.advancedSectionLabel)
         let actionsRow = self.makeSectionContentStack()
+        self.upgradeMihomoCoreButton.bezelStyle = .rounded
         self.flushFakeIPButton.bezelStyle = .rounded
         self.flushDNSButton.bezelStyle = .rounded
         self.openCoreDirectoryButton.bezelStyle = .rounded
+        self.upgradeMihomoCoreButton.target = self
         self.flushFakeIPButton.target = self
         self.flushDNSButton.target = self
         self.openCoreDirectoryButton.target = self
+        self.upgradeMihomoCoreButton.action = #selector(self.upgradeMihomoCore(_:))
         self.flushFakeIPButton.action = #selector(self.flushFakeIP(_:))
         self.flushDNSButton.action = #selector(self.flushDNS(_:))
         self.openCoreDirectoryButton.action = #selector(self.openCoreDirectory(_:))
+        actionsRow.addArrangedSubview(self.upgradeMihomoCoreButton)
         actionsRow.addArrangedSubview(self.flushFakeIPButton)
         actionsRow.addArrangedSubview(self.flushDNSButton)
         actionsRow.addArrangedSubview(self.openCoreDirectoryButton)
@@ -197,6 +202,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.launchAtLoginButton.state = self.appState.launchAtLoginEnabled ? .on : .off
         self.autoStopCoreOnNetworkDisconnectButton.state = self.appState.autoStopCoreOnNetworkDisconnectEnabled ? .on : .off
         self.autoStopCoreOnSystemSleepButton.state = self.appState.autoStopCoreOnSystemSleepEnabled ? .on : .off
+        self.upgradeMihomoCoreButton.isEnabled = self.appState.isRuntimeRunning
 
         for (tag, language) in self.selectedLanguageMap where language == self.appState.uiLanguage {
             self.languagePopup.selectItem(withTag: tag)
@@ -212,6 +218,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.autoStopCoreOnNetworkDisconnectButton.title = self.tr("ui.settings.auto_stop_core_on_network_disconnect")
         self.autoStopCoreOnSystemSleepButton.title = self.tr("ui.settings.auto_stop_core_on_system_sleep")
         self.languageLabel.stringValue = self.tr("ui.settings.language")
+        self.upgradeMihomoCoreButton.title = self.tr("ui.action.upgrade_mihomo_core")
         self.flushFakeIPButton.title = self.local("清理 FakeIP 缓存", "Clear FakeIP Cache")
         self.flushDNSButton.title = self.local("清理 DNS 缓存", "Clear DNS Cache")
         self.openCoreDirectoryButton.title = self.tr("ui.action.open_core_directory")
@@ -236,6 +243,10 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         L10n.t(key, language: self.appState.uiLanguage)
     }
 
+    private func tr(_ key: String, _ args: CVarArg...) -> String {
+        L10n.t(key, language: self.appState.uiLanguage, args: args)
+    }
+
     private func local(_ zh: String, _ en: String) -> String {
         self.appState.uiLanguage == .zhHans ? zh : en
     }
@@ -246,9 +257,31 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         alert.messageText = self.local("操作失败", "Operation Failed")
         alert.informativeText = message
         alert.addButton(withTitle: self.tr("ui.action.ok"))
+        self.presentAlert(alert)
+    }
+
+    private func presentInfo(title: String, message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: self.tr("ui.action.ok"))
+        self.presentAlert(alert)
+    }
+
+    func presentAlert(_ alert: NSAlert, completion: ((NSApplication.ModalResponse) -> Void)? = nil) {
         self.appState.prepareModalWindowPresentation()
         self.appState.configureModalWindow(alert.window)
-        alert.runModal()
+
+        if let window, window.isVisible {
+            alert.beginSheetModal(for: window) { response in
+                completion?(response)
+            }
+            return
+        }
+
+        let response = alert.runModal()
+        completion?(response)
     }
 
     @objc
@@ -276,6 +309,34 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         guard let language = self.selectedLanguageMap[sender.selectedTag()] else { return }
         self.appState.setUILanguage(language)
         self.refreshFromState()
+    }
+
+    @objc
+    private func upgradeMihomoCore(_ sender: Any?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.appState.upgradeCore()
+            switch result {
+            case let .updated(version):
+                let resolvedVersion = version ?? self.appState.version
+                let message = resolvedVersion.trimmedNonEmpty.map {
+                    self.tr("app.core_upgrade.updated_version", $0)
+                } ?? self.tr("app.core_upgrade.updated")
+                self.presentInfo(
+                    title: self.tr("app.core_upgrade.alert.updated.title"),
+                    message: message)
+            case let .alreadyLatest(version):
+                let resolvedVersion = version ?? self.appState.version
+                let message = resolvedVersion.trimmedNonEmpty.map {
+                    self.tr("app.core_upgrade.already_latest_version", $0)
+                } ?? self.tr("app.core_upgrade.already_latest")
+                self.presentInfo(
+                    title: self.tr("app.core_upgrade.alert.latest.title"),
+                    message: message)
+            case let .failed(message):
+                self.presentError(message)
+            }
+        }
     }
 
     @objc

@@ -440,12 +440,12 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
             ].joined(separator: "\n")
             alert.addButton(withTitle: self.tr("ui.action.ok"))
             alert.addButton(withTitle: self.local("打开 GitHub", "Open GitHub"))
-            self.appState.prepareModalWindowPresentation()
-            self.appState.configureModalWindow(alert.window)
-            if alert.runModal() == .alertSecondButtonReturn,
-               let url = URL(string: "https://github.com/f1ynng8/ClashMenu/")
-            {
-                _ = NSWorkspace.shared.open(url)
+            self.settingsWindowController.presentAlert(alert) { response in
+                if response == .alertSecondButtonReturn,
+                   let url = URL(string: "https://github.com/f1ynng8/ClashMenu/")
+                {
+                    _ = NSWorkspace.shared.open(url)
+                }
             }
         }
     }

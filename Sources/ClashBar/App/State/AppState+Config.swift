@@ -436,7 +436,7 @@ extension AppState {
     }
 
     func configureModalWindow(_ window: NSWindow) {
-        window.level = .statusBar
+        window.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
         window.collectionBehavior.insert(.moveToActiveSpace)
     }
 

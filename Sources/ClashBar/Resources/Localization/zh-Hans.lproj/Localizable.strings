@@ -37,6 +37,7 @@
 "ui.action.overwrite" = "覆盖";
 "ui.action.cancel" = "取消";
 "ui.action.ok" = "确定";
+"ui.action.upgrade_mihomo_core" = "更新Mihomo内核";
 "ui.action.flush_fakeip_cache" = "清理 FakeIP 缓存";
 "ui.action.flush_dns_cache" = "清理 DNS 缓存";
 "ui.action.open_core_directory" = "打开内核目录";
@@ -138,6 +139,12 @@
 "app.settings.saved.single_key" = "%@ 已保存";
 "app.settings.error.save_failed" = "%@ 保存失败: %@";
 "app.settings.overlay_success" = "已保留设置并覆盖当前配置";
+"app.core_upgrade.alert.updated.title" = "Mihomo 已更新";
+"app.core_upgrade.alert.latest.title" = "Mihomo 已是最新";
+"app.core_upgrade.updated" = "Mihomo 更新请求已完成。";
+"app.core_upgrade.updated_version" = "Mihomo 已更新到版本 %@。";
+"app.core_upgrade.already_latest" = "Mihomo 已是最新版本。";
+"app.core_upgrade.already_latest_version" = "Mihomo 已是最新版本（%@）。";
 "app.launch_at_login.error.unsupported_environment" = "仅可在 .app 包内启用开机自启，请运行打包后的应用";
 "app.launch_at_login.error.requires_approval" = "需要在系统设置 > 通用 > 登录项中允许 ClashBar";
 "app.launch_at_login.error.register_failed" = "开启开机自启失败: %@";
@@ -228,6 +235,11 @@
 "log.tun.startup_check_failed" = "启动时校验 TUN 权限失败: %@";
 "log.tun.permission_requesting" = "正在请求管理员权限以启用 TUN 模式...";
 "log.tun.permission_granted" = "TUN 权限授予成功。";
+"log.core_upgrade.updated" = "Mihomo 内核更新请求已完成";
+"log.core_upgrade.updated_version" = "Mihomo 内核已更新到版本 %@";
+"log.core_upgrade.latest" = "Mihomo 内核已是最新版本";
+"log.core_upgrade.latest_version" = "Mihomo 内核已是最新版本（%@）";
+"log.core_upgrade.failed" = "Mihomo 内核更新失败: %@";
 "log.proxy_export.copied" = "已复制代理导出命令";
 "log.provider.node_test_failed" = "Provider 节点测试失败 (%@/%@): %@";
 "log.provider.healthcheck_failed" = "Provider 健康检查失败（%@）: %@";

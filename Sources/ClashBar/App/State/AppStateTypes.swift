@@ -34,6 +34,12 @@ enum CoreActionState {
     case restarting
 }
 
+enum CoreUpgradeResult: Equatable {
+    case updated(version: String?)
+    case alreadyLatest(version: String?)
+    case failed(message: String)
+}
+
 enum ConfigPatchValue: Sendable {
     case bool(Bool)
     case int(Int)

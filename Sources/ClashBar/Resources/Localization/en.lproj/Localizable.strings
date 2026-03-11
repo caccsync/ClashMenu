@@ -37,6 +37,7 @@
 "ui.action.overwrite" = "Overwrite";
 "ui.action.cancel" = "Cancel";
 "ui.action.ok" = "OK";
+"ui.action.upgrade_mihomo_core" = "Update Mihomo Core";
 "ui.action.flush_fakeip_cache" = "Flush FakeIP Cache";
 "ui.action.flush_dns_cache" = "Flush DNS Cache";
 "ui.action.open_core_directory" = "Open Core Directory";
@@ -138,6 +139,12 @@
 "app.settings.saved.single_key" = "%@ saved";
 "app.settings.error.save_failed" = "%@ save failed: %@";
 "app.settings.overlay_success" = "Local settings preserved and applied over current config";
+"app.core_upgrade.alert.updated.title" = "Mihomo Updated";
+"app.core_upgrade.alert.latest.title" = "Mihomo Up To Date";
+"app.core_upgrade.updated" = "Mihomo update request finished.";
+"app.core_upgrade.updated_version" = "Mihomo has been updated to version %@.";
+"app.core_upgrade.already_latest" = "Mihomo is already on the latest version.";
+"app.core_upgrade.already_latest_version" = "Mihomo is already on the latest version (%@).";
 "app.launch_at_login.error.unsupported_environment" = "Launch at login can only be enabled from the packaged .app build";
 "app.launch_at_login.error.requires_approval" = "Allow ClashBar in System Settings > General > Login Items";
 "app.launch_at_login.error.register_failed" = "Failed to enable launch at login: %@";
@@ -228,6 +235,11 @@
 "log.tun.startup_check_failed" = "Startup TUN permission check failed: %@";
 "log.tun.permission_requesting" = "Requesting administrator permissions for TUN mode...";
 "log.tun.permission_granted" = "TUN permissions granted.";
+"log.core_upgrade.updated" = "Mihomo core update request finished";
+"log.core_upgrade.updated_version" = "Mihomo core updated to version %@";
+"log.core_upgrade.latest" = "Mihomo core is already on the latest version";
+"log.core_upgrade.latest_version" = "Mihomo core is already on the latest version (%@)";
+"log.core_upgrade.failed" = "Mihomo core update failed: %@";
 "log.proxy_export.copied" = "Proxy export command copied";
 "log.provider.node_test_failed" = "Provider node test failed (%@/%@): %@";
 "log.provider.healthcheck_failed" = "Provider healthcheck failed (%@): %@";

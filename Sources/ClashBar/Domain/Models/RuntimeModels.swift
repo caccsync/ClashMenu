@@ -16,3 +16,8 @@ enum CoreMode: String, Codable {
 struct VersionInfo: Codable, Equatable {
     let version: String
 }
+
+struct CoreUpgradeResponse: Decodable, Equatable {
+    let status: String?
+    let message: String?
+}
