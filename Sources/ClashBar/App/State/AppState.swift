@@ -370,7 +370,7 @@ final class AppState: ObservableObject {
                 self.clashmenuLogStore = AppLogStore(logFileURL: clashmenuLogFileURL)
             }
             if let mihomoLogFileURL, self.mihomoLogStore == nil {
-                self.mihomoLogStore = AppLogStore(logFileURL: mihomoLogFileURL)
+                self.mihomoLogStore = AppLogStore(logFileURL: mihomoLogFileURL, maxArchives: 4)
             }
             ensureLogFileExists()
             seedBundledConfigIfNeeded()

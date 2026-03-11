@@ -8,6 +8,7 @@ final class AppLogStore {
     private let retentionDays: Int
     private let checkInterval: TimeInterval
     private let checkAfterBytes: UInt64
+    private let calendar: Calendar
     private var lastRotationCheckAt: Date = .distantPast
     private var bytesWrittenSinceLastCheck: UInt64 = 0
 
@@ -25,7 +26,8 @@ final class AppLogStore {
         maxArchives: Int = 5,
         retentionDays: Int = 7,
         checkInterval: TimeInterval = 30,
-        checkAfterBytes: UInt64 = 64 * 1024)
+        checkAfterBytes: UInt64 = 64 * 1024,
+        calendar: Calendar = .current)
     {
         self.logFileURL = logFileURL
         self.fileManager = fileManager
@@ -34,13 +36,28 @@ final class AppLogStore {
         self.retentionDays = max(1, retentionDays)
         self.checkInterval = max(1, checkInterval)
         self.checkAfterBytes = max(4 * 1024, checkAfterBytes)
+        self.calendar = calendar
     }
 
     func ensureLogFileExists() {
+        let createdLogFile: Bool
         if !self.fileManager.fileExists(atPath: self.logFileURL.path) {
             self.fileManager.createFile(atPath: self.logFileURL.path, contents: nil)
+            createdLogFile = true
+        } else {
+            createdLogFile = false
         }
-        self.cleanupArchivesIfNeeded(force: true)
+
+        if createdLogFile {
+            self.bytesWrittenSinceLastCheck = 0
+            self.lastRotationCheckAt = Date()
+        } else if self.shouldRotateForDateBoundary() || (
+            self.currentLogFileSize().map { $0 > self.maxFileSizeBytes } ?? false
+        ) {
+            self.rotateArchives()
+        }
+
+        self.cleanupArchivesIfNeeded(force: false)
     }
 
     func append(entries: [AppErrorLogEntry]) {
@@ -103,7 +120,7 @@ final class AppLogStore {
             return
         }
 
-        if currentFileSize > self.maxFileSizeBytes {
+        if self.shouldRotateForDateBoundary() || currentFileSize > self.maxFileSizeBytes {
             self.rotateArchives()
         }
 
@@ -192,5 +209,15 @@ final class AppLogStore {
             return nil
         }
         return fileSize.uint64Value
+    }
+
+    private func shouldRotateForDateBoundary() -> Bool {
+        guard let attributes = try? self.fileManager.attributesOfItem(atPath: self.logFileURL.path),
+              let modifiedAt = attributes[.modificationDate] as? Date
+        else {
+            return false
+        }
+
+        return !self.calendar.isDate(modifiedAt, inSameDayAs: Date())
     }
 }
