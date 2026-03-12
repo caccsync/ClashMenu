@@ -106,6 +106,7 @@
 "ui.settings.launch_at_login" = "Start at Login";
 "ui.settings.auto_stop_core_on_network_disconnect" = "Auto Stop Core When Network Disconnects";
 "ui.settings.auto_stop_core_on_system_sleep" = "Auto Stop Core During System Sleep";
+"ui.settings.recovery_check_delay" = "Recovery Confirmation Delay (s)";
 "ui.settings.language" = "UI Language";
 "ui.settings.appearance" = "Appearance";
 "ui.settings.appearance.system" = "Follow System";

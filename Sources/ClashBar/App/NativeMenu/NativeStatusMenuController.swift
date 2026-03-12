@@ -446,6 +446,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
             alert.informativeText = [
                 "ClashMenu \(self.appVersionString())",
                 "Mihomo \(mihomoVersion)",
+                "",
                 "Copyright (c) ClashMenu",
             ].joined(separator: "\n")
             alert.addButton(withTitle: self.tr("ui.action.ok"))

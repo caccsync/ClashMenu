@@ -172,6 +172,20 @@ final class AppState: ObservableObject {
         }
     }
 
+    var recoveryCheckDelaySeconds: Int {
+        get { max(1, self.recoveryCheckDelaySecondsStorage) }
+        set {
+            let clamped = max(1, min(newValue, 60))
+            guard self.recoveryCheckDelaySecondsStorage != clamped else { return }
+            self.objectWillChange.send()
+            self.recoveryCheckDelaySecondsStorage = clamped
+        }
+    }
+
+    var recoveryCheckDelayNanoseconds: UInt64 {
+        UInt64(self.recoveryCheckDelaySeconds) * 1_000_000_000
+    }
+
     var isCoreActionProcessing: Bool {
         self.coreActionState != .idle
     }
@@ -223,6 +237,7 @@ final class AppState: ObservableObject {
     let defaults = UserDefaults.standard
     @AppStorage("clashmenu.auto.stop.core.network.loss") private var autoStopCoreOnNetworkLoss: Bool = true
     @AppStorage("clashmenu.auto.stop.core.system.sleep") private var autoStopCoreOnSystemSleep: Bool = true
+    @AppStorage("clashmenu.recovery.check.delay.seconds") private var recoveryCheckDelaySecondsStorage: Int = 1
     @AppStorage("clashmenu.core.restore_on_launch") var shouldRestoreCoreOnLaunch: Bool = false
     @AppStorage("clashmenu.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
     @AppStorage("clashmenu.system_proxy.desired") var desiredSystemProxyEnabled: Bool = false
@@ -243,8 +258,6 @@ final class AppState: ObservableObject {
     let latestAppReleaseRefreshInterval: TimeInterval = 6 * 60 * 60
     let latestAppReleaseRetryInterval: TimeInterval = 30 * 60
     let networkOfflineStopDebounceNanoseconds: UInt64 = 20_000_000_000
-    let networkOnlineStartDebounceNanoseconds: UInt64 = 8_000_000_000
-    let networkWakeRecoveryDelayNanoseconds: UInt64 = 15_000_000_000
     // DRY: shared defaults for latency/provider healthcheck endpoints.
     let defaultHealthcheckURL = "https://www.gstatic.com/generate_204"
     let defaultHealthcheckTimeoutMilliseconds = 5000

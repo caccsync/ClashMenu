@@ -2,12 +2,15 @@ import AppKit
 import Combine
 
 @MainActor
-final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate {
+final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate, NSTextFieldDelegate {
     private let appState: AppState
 
     private let launchAtLoginButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let autoStopCoreOnNetworkDisconnectButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let autoStopCoreOnSystemSleepButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let recoveryCheckDelayLabel = NSTextField(labelWithString: "")
+    private let recoveryCheckDelayField = NSTextField(string: "")
+    private let recoveryCheckDelayStepper = NSStepper()
     private let languageLabel = NSTextField(labelWithString: "")
     private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let generalSectionLabel = NSTextField(labelWithString: "")
@@ -101,6 +104,11 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
             button.setContentHuggingPriority(.required, for: .horizontal)
             generalContent.addArrangedSubview(button)
         }
+        let recoveryDelayRow = self.makeStepperRow(
+            label: self.recoveryCheckDelayLabel,
+            field: self.recoveryCheckDelayField,
+            stepper: self.recoveryCheckDelayStepper)
+        generalContent.addArrangedSubview(recoveryDelayRow)
         generalSection.addArrangedSubview(generalContent)
         stack.addArrangedSubview(generalSection)
         stack.setCustomSpacing(30, after: generalSection)
@@ -108,6 +116,12 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.launchAtLoginButton.action = #selector(self.toggleLaunchAtLogin(_:))
         self.autoStopCoreOnNetworkDisconnectButton.action = #selector(self.toggleAutoStopCoreOnNetworkDisconnect(_:))
         self.autoStopCoreOnSystemSleepButton.action = #selector(self.toggleAutoStopCoreOnSystemSleep(_:))
+        self.recoveryCheckDelayField.delegate = self
+        self.recoveryCheckDelayStepper.target = self
+        self.recoveryCheckDelayStepper.action = #selector(self.changeRecoveryCheckDelayStepper(_:))
+        self.recoveryCheckDelayStepper.minValue = 1
+        self.recoveryCheckDelayStepper.maxValue = 60
+        self.recoveryCheckDelayStepper.increment = 1
 
         self.languagePopup.target = self
         self.languagePopup.action = #selector(self.changeLanguage(_:))
@@ -161,6 +175,39 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         return container
     }
 
+    private func makeStepperRow(label: NSTextField, field: NSTextField, stepper: NSStepper) -> NSView {
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.setContentHuggingPriority(.required, for: .horizontal)
+
+        field.translatesAutoresizingMaskIntoConstraints = false
+        field.alignment = .right
+        field.controlSize = .small
+        field.widthAnchor.constraint(equalToConstant: 48).isActive = true
+
+        stepper.translatesAutoresizingMaskIntoConstraints = false
+        stepper.controlSize = .small
+
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+        container.addSubview(field)
+        container.addSubview(stepper)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            label.centerYAnchor.constraint(equalTo: field.centerYAnchor),
+            field.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 12),
+            field.topAnchor.constraint(equalTo: container.topAnchor),
+            field.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            stepper.leadingAnchor.constraint(equalTo: field.trailingAnchor, constant: 8),
+            stepper.centerYAnchor.constraint(equalTo: field.centerYAnchor),
+            stepper.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+        ])
+
+        return container
+    }
+
     private func makeSection(label: NSTextField) -> NSStackView {
         let section = NSStackView()
         section.orientation = .vertical
@@ -202,6 +249,8 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.launchAtLoginButton.state = self.appState.launchAtLoginEnabled ? .on : .off
         self.autoStopCoreOnNetworkDisconnectButton.state = self.appState.autoStopCoreOnNetworkDisconnectEnabled ? .on : .off
         self.autoStopCoreOnSystemSleepButton.state = self.appState.autoStopCoreOnSystemSleepEnabled ? .on : .off
+        self.recoveryCheckDelayField.stringValue = "\(self.appState.recoveryCheckDelaySeconds)"
+        self.recoveryCheckDelayStepper.integerValue = self.appState.recoveryCheckDelaySeconds
         self.upgradeMihomoCoreButton.isEnabled = self.appState.isRuntimeRunning
 
         for (tag, language) in self.selectedLanguageMap where language == self.appState.uiLanguage {
@@ -217,6 +266,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.launchAtLoginButton.title = self.tr("ui.settings.launch_at_login")
         self.autoStopCoreOnNetworkDisconnectButton.title = self.tr("ui.settings.auto_stop_core_on_network_disconnect")
         self.autoStopCoreOnSystemSleepButton.title = self.tr("ui.settings.auto_stop_core_on_system_sleep")
+        self.recoveryCheckDelayLabel.stringValue = self.tr("ui.settings.recovery_check_delay")
         self.languageLabel.stringValue = self.tr("ui.settings.language")
         self.upgradeMihomoCoreButton.title = self.tr("ui.action.upgrade_mihomo_core")
         self.flushFakeIPButton.title = self.local("清理 FakeIP 缓存", "Clear FakeIP Cache")
@@ -305,9 +355,25 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     }
 
     @objc
+    private func changeRecoveryCheckDelayStepper(_ sender: NSStepper) {
+        self.applyRecoveryCheckDelay(sender.integerValue)
+    }
+
+    @objc
     private func changeLanguage(_ sender: NSPopUpButton) {
         guard let language = self.selectedLanguageMap[sender.selectedTag()] else { return }
         self.appState.setUILanguage(language)
+        self.refreshFromState()
+    }
+
+    func controlTextDidEndEditing(_ notification: Notification) {
+        guard let field = notification.object as? NSTextField else { return }
+        guard field == self.recoveryCheckDelayField else { return }
+        self.applyRecoveryCheckDelay(Int(field.stringValue) ?? self.appState.recoveryCheckDelaySeconds)
+    }
+
+    private func applyRecoveryCheckDelay(_ seconds: Int) {
+        self.appState.recoveryCheckDelaySeconds = seconds
         self.refreshFromState()
     }
 

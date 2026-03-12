@@ -106,6 +106,7 @@
 "ui.settings.launch_at_login" = "开机自启";
 "ui.settings.auto_stop_core_on_network_disconnect" = "网络断开时自动停止内核";
 "ui.settings.auto_stop_core_on_system_sleep" = "系统休眠时自动停止内核";
+"ui.settings.recovery_check_delay" = "恢复确认延迟（秒）";
 "ui.settings.language" = "界面语言";
 "ui.settings.appearance" = "外观模式";
 "ui.settings.appearance.system" = "跟随系统";

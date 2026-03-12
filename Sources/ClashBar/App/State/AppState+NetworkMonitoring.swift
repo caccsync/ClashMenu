@@ -158,13 +158,13 @@ extension AppState {
         self.isSystemSleeping = false
         self.cancelNetworkAutomationTasks(resetRecoveryIntent: false)
         self.networkReachabilitySuppressedUntil = Date().addingTimeInterval(
-            TimeInterval(self.networkWakeRecoveryDelayNanoseconds) / 1_000_000_000)
+            TimeInterval(self.recoveryCheckDelaySeconds))
         self.appendLog(level: "info", message: "系统已唤醒，正在等待网络状态稳定后再执行自动管理。")
 
         self.networkWakeRecoveryTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await Task.sleep(nanoseconds: self.networkWakeRecoveryDelayNanoseconds)
+                try await Task.sleep(nanoseconds: self.recoveryCheckDelayNanoseconds)
             } catch {
                 return
             }
@@ -252,7 +252,7 @@ extension AppState {
             guard let self else { return }
 
             do {
-                try await Task.sleep(nanoseconds: self.networkOnlineStartDebounceNanoseconds)
+                try await Task.sleep(nanoseconds: self.recoveryCheckDelayNanoseconds)
             } catch {
                 return
             }
