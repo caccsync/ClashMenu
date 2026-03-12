@@ -3,9 +3,9 @@ import Combine
 
 @MainActor
 final class NativeStatusMenuController: NSObject, NSMenuDelegate {
+    private let statusIconPointSize: CGFloat = 18
     private let appState: AppState
     private let statusItem: NSStatusItem
-    private let statusContentView: StatusItemContentView
     private let menu = NSMenu()
     private let runtimeStatusItem = NSMenuItem()
     private let runtimeMenu = NSMenu()
@@ -33,7 +33,6 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     init(appState: AppState) {
         self.appState = appState
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        self.statusContentView = StatusItemContentView(frame: .zero)
         self.settingsWindowController = NativeSettingsWindowController(appState: appState)
 
         super.init()
@@ -68,11 +67,11 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
         guard let button = self.statusItem.button else { return }
 
         button.image = nil
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        button.appearsDisabled = false
         button.title = ""
-        self.statusContentView.frame = button.bounds
-        self.statusContentView.autoresizingMask = [.width, .height]
-        button.addSubview(self.statusContentView)
-
+        self.statusItem.length = NSStatusItem.squareLength
         self.statusItem.menu = self.menu
     }
 
@@ -162,10 +161,21 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     private func refreshStatusItemDisplay() {
         let display = self.appState.menuBarDisplaySnapshot
-        self.statusContentView.apply(display: display)
-        let requiredWidth = self.statusContentView.requiredWidth
-        if abs(self.statusItem.length - requiredWidth) > 0.5 {
-            self.statusItem.length = requiredWidth
+        guard let button = self.statusItem.button else { return }
+
+        if let brandImage = BrandIcon.templateStatusImage(for: display.brandIconState, pointSize: self.statusIconPointSize) {
+            if button.image !== brandImage {
+                button.image = brandImage
+            }
+            button.contentTintColor = nil
+        } else {
+            let image = NSImage(
+                systemSymbolName: display.symbolName,
+                accessibilityDescription: "ClashMenu")?
+                .withSymbolConfiguration(.init(pointSize: self.statusIconPointSize, weight: .semibold))
+            image?.isTemplate = true
+            button.image = image
+            button.contentTintColor = nil
         }
     }
 

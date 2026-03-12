@@ -3,7 +3,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${APP_NAME:-ClashMenu}"
-APP_VERSION="${APP_VERSION:-0.0.20}"
+VERSION_FILE="${VERSION_FILE:-$ROOT/VERSION}"
+if [ -z "${APP_VERSION:-}" ]; then
+  if [ -f "$VERSION_FILE" ]; then
+    APP_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+  else
+    APP_VERSION="0.0.21"
+  fi
+fi
 DMG_SUFFIX="${DMG_SUFFIX:-}"
 VOLUME_NAME="${DMG_VOLUME_NAME:-${APP_NAME}}"
 

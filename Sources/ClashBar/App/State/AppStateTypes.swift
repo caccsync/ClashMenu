@@ -108,6 +108,7 @@ struct ProviderNodeKey: Hashable {
 
 struct MenuBarDisplay: Equatable {
     let symbolName: String
+    let brandIconState: BrandIconState
 }
 
 struct CoreFeatureRecoveryState {

@@ -4,8 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${APP_NAME:-ClashMenu}"
 BUNDLE_ID="${BUNDLE_ID:-com.clashmenu}"
-APP_VERSION="${APP_VERSION:-0.0.20}"
-BUILD_NUMBER="${BUILD_NUMBER:-1}"
+VERSION_FILE="${VERSION_FILE:-$ROOT/VERSION}"
+if [ -z "${APP_VERSION:-}" ]; then
+  if [ -f "$VERSION_FILE" ]; then
+    APP_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+  else
+    APP_VERSION="0.0.21"
+  fi
+fi
+BUILD_NUMBER="${BUILD_NUMBER:-$(date -u +%Y%m%d%H%M%S)}"
 TARGET_ARCH="${TARGET_ARCH:-}"
 PREPROCESS_DIR="${PREPROCESS_DIR:-$ROOT/dist/preprocess}"
 PREPROCESSED_ICON_PATH="${PREPROCESSED_ICON_PATH:-$PREPROCESS_DIR/${APP_NAME}.icns}"
@@ -16,8 +23,13 @@ BUNDLE_MIHOMO_BINARY="${BUNDLE_MIHOMO_BINARY:-1}"
 APP="$ROOT/dist/${APP_NAME}.app"
 HELPER_LABEL="com.clashmenu.helper"
 HELPER_PLIST_SOURCE="$ROOT/Sources/Helper/LaunchDaemons/${HELPER_LABEL}.plist"
+MODULE_CACHE_DIR="${MODULE_CACHE_DIR:-$ROOT/.build/module-cache}"
 
 cd "$ROOT"
+
+mkdir -p "$MODULE_CACHE_DIR"
+export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE_DIR"
+export SWIFTPM_MODULECACHE_OVERRIDE="$MODULE_CACHE_DIR"
 
 BUILD_ARGS=(-c release)
 if [ -n "$TARGET_ARCH" ]; then

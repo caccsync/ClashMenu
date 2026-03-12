@@ -62,7 +62,9 @@ final class AppState: ObservableObject {
     @Published var launchAtLoginEnabled: Bool = false
     @Published var launchAtLoginErrorMessage: String?
     @Published var latestAppReleaseInfo: AppReleaseInfo?
-    @Published private(set) var menuBarDisplaySnapshot = MenuBarDisplay(symbolName: "bolt.slash.circle")
+    @Published private(set) var menuBarDisplaySnapshot = MenuBarDisplay(
+        symbolName: "bolt.slash.circle",
+        brandIconState: .stopped)
 
     @Published var settingsSyncingKey: String?
     @Published var settingsErrorMessage: String?
@@ -133,7 +135,9 @@ final class AppState: ObservableObject {
     }
 
     private var computedMenuBarDisplay: MenuBarDisplay {
-        MenuBarDisplay(symbolName: self.menuBarSymbolName)
+        MenuBarDisplay(
+            symbolName: self.menuBarSymbolName,
+            brandIconState: self.runtimeVisualStatus == .runningHealthy ? .running : .stopped)
     }
 
     func refreshMenuBarDisplaySnapshotIfNeeded() {
