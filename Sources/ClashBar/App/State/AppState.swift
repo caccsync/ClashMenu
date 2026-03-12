@@ -237,7 +237,7 @@ final class AppState: ObservableObject {
     let defaults = UserDefaults.standard
     @AppStorage("clashmenu.auto.stop.core.network.loss") private var autoStopCoreOnNetworkLoss: Bool = true
     @AppStorage("clashmenu.auto.stop.core.system.sleep") private var autoStopCoreOnSystemSleep: Bool = true
-    @AppStorage("clashmenu.recovery.check.delay.seconds") private var recoveryCheckDelaySecondsStorage: Int = 1
+    @AppStorage("clashmenu.recovery.check.delay.seconds") private var recoveryCheckDelaySecondsStorage: Int = 3
     @AppStorage("clashmenu.core.restore_on_launch") var shouldRestoreCoreOnLaunch: Bool = false
     @AppStorage("clashmenu.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
     @AppStorage("clashmenu.system_proxy.desired") var desiredSystemProxyEnabled: Bool = false
