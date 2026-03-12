@@ -23,8 +23,12 @@
 
 </div>
 
-![ClashMenu](./imgs/clashmenu.png)
-
+<p align="center">
+  <img src="./imgs/start.png" alt="start" width="180" align="top" />
+  <img src="./imgs/mode.png" alt="mode" width="230" align="top" />
+  <img src="./imgs/config.png" alt="config" width="250" align="top" />
+  <img src="./imgs/setup.png" alt="setup" width="280" align="top" />
+</p>
 ---
 
 ## 👋 项目简介
@@ -40,7 +44,19 @@ ClashMenu 是以macOS上裸核运行mihomo为目标的极简菜单栏客户端�
 
 本项目不直接提供构建物下载，请clone源码后自行构建。
 `Script/build.sh`
-默认根据本机环境进行构建，也可根据脚本内容自定义构建物架构（arm/intel)。
+默认根据本机环境进行构建，也可以看一下脚本说明，自定义架构（Apple Silicon/Intel)。
+
+## 🔄 控制面板
+配置文件建议写法：
+```
+external-controller: 127.0.0.1:9090
+secret: "your-secret" 
+external-ui: ui 
+#external-ui-name: zashboard
+external-ui-url: "https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip"
+```
+ClashMenu没有打包任何Dashboard，所以配置文件中务必要写好external-ui-url，可任选自己喜欢的Dashboard。
+`控制面板`按钮会尝试打开 http://127.0.0.1:9090/ui ，如果定义了external-ui-name，网页上会出现一个目录需要二次点击。
 
 ## 🔄 内核目录与切换
 
