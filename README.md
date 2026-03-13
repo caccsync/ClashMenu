@@ -58,29 +58,6 @@ external-ui-url: "https://github.com/Zephyruso/zashboard/releases/latest/downloa
 ClashMenu没有打包任何Dashboard，所以配置文件中务必要写好external-ui-url，可任选自己喜欢的Dashboard。
 `控制面板`按钮会尝试打开 http://127.0.0.1:9090/ui ，如果定义了external-ui-name，网页上会出现一个目录需要二次点击。
 
-## 🔄 内核目录与切换
-
-运行时内核路径：
-
-- `~/Library/Application Support/clashmenu/core/mihomo`
-
-首次启动会将应用内置内核复制到上述目录。后续运行统一使用该路径，避免改写已签名的 app bundle。
-
-切换内核步骤：
-
-1. 在 ClashMenu 中执行 `Stop`，确保当前内核进程已停止。
-2. 准备目标内核可执行文件（如 `mihomo`，命名需要保存一致）。
-3. 返回 ClashMenu，执行 `Start` 或 `Restart`。
-
-异常处理：
-
-- 若切换后出现缓存兼容问题，可清理缓存后重试：
-
-```bash
-rm -f "$HOME/Library/Application Support/clashmenu/cache.db"
-```
-
-- 使用 TUN 模式时，切换内核后可能需要重新授权相关权限（root + setuid）。
 
 ## ❓ 常见问题
 
@@ -108,41 +85,11 @@ sudo xattr -r -d com.apple.quarantine /Applications/ClashMenu.app
 
 1. 确认使用的是打包后的应用，并位于 `/Applications`。
 2. 在 macOS 系统设置中完成 ClashMenu 相关权限批准。
-3. 回到应用执行一次 `Restart` Core 后再次开启系统代理。
-4. 如仍失败，打开 `Logs` 检查关键错误并提交 Issue。
-
-### 3) 切换节点后网络无变化 🌐
-
-**现象**：已切换 Proxy Group 或节点，但访问效果未变化。  
-**原因**：常见于模式不匹配、节点未生效或配置未重载。
-
-**处理步骤**
-
-1. 执行一次延迟测试，确认目标节点可用。
-2. 确认当前模式为 `Rule` 或 `Global`（避免误处于 `Direct`）。
-3. 重新选择目标 Proxy Group/节点，并执行 `Restart` Core。
-
-### 4) 远程配置更新后未生效 🔁
-
-**现象**：远程更新成功，但节点或规则未刷新。  
-**原因**：配置列表未重载或当前生效配置未切换到最新版本。
-
-**处理步骤**
-
-1. 先执行远程更新，再点击 `重载配置`。
-2. 重新选择目标配置，确认当前生效项已切换。
-3. 如仍异常，检查 `Logs` 中是否存在拉取失败或解析错误。
-
-### 5) 请求没有按预期走代理 🧭
-
-**现象**：部分域名/IP 走向与预期策略不一致。  
-**原因**：通常是规则命中顺序、分流策略或配置内容导致。
-
-**处理步骤**
-
-1. 在 `Rules` 页面检查命中规则与策略结果。
-2. 在 `Activity` 定位对应连接，核对目标地址与链路。
-3. 在 `Logs` 通过关键词过滤交叉验证最终路由决策。
+3. 退出应用，重新启动，再次开启系统代理。如果还有问题则可能是特权助手存在问题，需要继续以下步骤：
+5. 移除ClashMenu
+6. 执行`sudo launchctl bootout system/com.clashmenu.helper`卸载特权助手
+7. 重新安装ClashMenu
+8. 执行`log stream --style compact --predicate 'process == "com.clashmenu.helper"'`，然后开启系统代理，观察前述日志确定问题所在
 
 ## 🙌 反馈与支持
 
