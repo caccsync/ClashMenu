@@ -190,6 +190,7 @@ extension AppState {
     }
 
     func shutdownForTermination() {
+        self.disableSystemProxyForTerminationIfNeededBlocking()
         self.prepareForTermination()
         if processManager.isRunning {
             processManager.stop()
@@ -216,6 +217,16 @@ extension AppState {
                 level: "error",
                 message: self.tr("log.system_proxy.toggle_failed", self.systemProxyErrorMessage(error)))
         }
+    }
+
+    private func disableSystemProxyForTerminationIfNeededBlocking() {
+        let shouldRestoreOnNextLaunch = self.isSystemProxyEnabled || self.desiredSystemProxyEnabled
+        self.desiredSystemProxyEnabled = shouldRestoreOnNextLaunch
+
+        guard self.isSystemProxyEnabled else { return }
+
+        self.systemProxyService.clearSystemProxyBlocking()
+        self.isSystemProxyEnabled = false
     }
 
     private func prepareForTermination() {
