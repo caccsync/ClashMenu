@@ -283,16 +283,16 @@ extension AppState {
     func showCoreDirectoryInFinder() {
         do {
             try workingDirectoryManager.bootstrapDirectories()
-            let coreDirectory = try workingDirectoryManager.normalizeAndValidateWithinRoot(
-                workingDirectoryManager.coreDirectoryURL,
+            let runtimeDirectory = try workingDirectoryManager.normalizeAndValidateWithinRoot(
+                workingDirectoryManager.rootDirectoryURL,
                 mustBeDirectory: true)
-            if !NSWorkspace.shared.open(coreDirectory) {
-                appendLog(level: "error", message: tr("log.core.show_in_finder.failed", coreDirectory.path))
+            if !NSWorkspace.shared.open(runtimeDirectory) {
+                appendLog(level: "error", message: tr("log.core.show_in_finder.failed", runtimeDirectory.path))
             }
         } catch {
             appendLog(
                 level: "error",
-                message: tr("log.core.show_in_finder.failed", workingDirectoryManager.coreDirectoryURL.path))
+                message: tr("log.core.show_in_finder.failed", workingDirectoryManager.rootDirectoryURL.path))
         }
     }
 

@@ -22,6 +22,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     private let systemProxyItem = NSMenuItem()
     private let tunModeItem = NSMenuItem()
     private let openDashboardItem = NSMenuItem()
+    private let openRuntimeDirectoryItem = NSMenuItem()
     private let settingsItem = NSMenuItem()
     private let aboutItem = NSMenuItem()
     private let quitItem = NSMenuItem()
@@ -114,6 +115,8 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
         self.tunModeItem.action = #selector(self.toggleTunMode(_:))
         self.openDashboardItem.target = self
         self.openDashboardItem.action = #selector(self.openDashboard(_:))
+        self.openRuntimeDirectoryItem.target = self
+        self.openRuntimeDirectoryItem.action = #selector(self.openRuntimeDirectory(_:))
         self.settingsItem.target = self
         self.settingsItem.action = #selector(self.openSettings(_:))
         self.aboutItem.target = self
@@ -129,6 +132,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
             self.systemProxyItem,
             self.tunModeItem,
             self.openDashboardItem,
+            self.openRuntimeDirectoryItem,
             .separator(),
             self.settingsItem,
             self.aboutItem,
@@ -226,6 +230,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     private func refreshStaticTitlesIfNeeded() {
         self.configItem.title = self.local("配置文件", "Configurations")
         self.openDashboardItem.title = self.local("控制面板", "Dashboard")
+        self.openRuntimeDirectoryItem.title = self.local("运行目录", "Runtime Directory")
         self.settingsItem.title = self.local("设置", "Settings")
         self.aboutItem.title = self.local("关于", "About")
         self.quitItem.title = self.tr("ui.action.quit")
@@ -427,6 +432,11 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
             self.presentError(self.local("无法打开 Dashboard。", "Unable to open Dashboard."))
             return
         }
+    }
+
+    @objc
+    private func openRuntimeDirectory(_ sender: Any?) {
+        self.appState.showCoreDirectoryInFinder()
     }
 
     @objc

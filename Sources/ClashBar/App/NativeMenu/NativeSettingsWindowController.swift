@@ -18,7 +18,6 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     private let upgradeMihomoCoreButton = NSButton(title: "", target: nil, action: nil)
     private let flushFakeIPButton = NSButton(title: "", target: nil, action: nil)
     private let flushDNSButton = NSButton(title: "", target: nil, action: nil)
-    private let openCoreDirectoryButton = NSButton(title: "", target: nil, action: nil)
 
     private var observers: [AnyCancellable] = []
     private var selectedLanguageMap: [Int: AppLanguage] = [:]
@@ -26,7 +25,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     init(appState: AppState) {
         self.appState = appState
 
-        let contentRect = NSRect(x: 0, y: 0, width: 332, height: 400)
+        let contentRect = NSRect(x: 0, y: 0, width: 250, height: 360)
         let window = NSWindow(
             contentRect: contentRect,
             styleMask: [.titled, .closable],
@@ -73,20 +72,20 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = contentView
-        window.contentMinSize = NSSize(width: 332, height: 360)
+        window.contentMinSize = NSSize(width: 250, height: 340)
 
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 12
+        stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            stack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -20),
+            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            stack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -16),
         ])
 
         let generalSection = self.makeSection(label: self.generalSectionLabel)
@@ -131,19 +130,15 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.upgradeMihomoCoreButton.bezelStyle = .rounded
         self.flushFakeIPButton.bezelStyle = .rounded
         self.flushDNSButton.bezelStyle = .rounded
-        self.openCoreDirectoryButton.bezelStyle = .rounded
         self.upgradeMihomoCoreButton.target = self
         self.flushFakeIPButton.target = self
         self.flushDNSButton.target = self
-        self.openCoreDirectoryButton.target = self
         self.upgradeMihomoCoreButton.action = #selector(self.upgradeMihomoCore(_:))
         self.flushFakeIPButton.action = #selector(self.flushFakeIP(_:))
         self.flushDNSButton.action = #selector(self.flushDNS(_:))
-        self.openCoreDirectoryButton.action = #selector(self.openCoreDirectory(_:))
         actionsRow.addArrangedSubview(self.upgradeMihomoCoreButton)
         actionsRow.addArrangedSubview(self.flushFakeIPButton)
         actionsRow.addArrangedSubview(self.flushDNSButton)
-        actionsRow.addArrangedSubview(self.openCoreDirectoryButton)
         advancedSection.addArrangedSubview(actionsRow)
         stack.addArrangedSubview(advancedSection)
     }
@@ -153,8 +148,8 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         label.setContentHuggingPriority(.required, for: .horizontal)
         popup.translatesAutoresizingMaskIntoConstraints = false
         popup.setContentHuggingPriority(.required, for: .horizontal)
-        popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 110).isActive = true
-        popup.widthAnchor.constraint(lessThanOrEqualToConstant: 128).isActive = true
+        popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 96).isActive = true
+        popup.widthAnchor.constraint(lessThanOrEqualToConstant: 116).isActive = true
 
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
@@ -166,7 +161,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             label.centerYAnchor.constraint(equalTo: popup.centerYAnchor),
-            popup.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
+            popup.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
             popup.topAnchor.constraint(equalTo: container.topAnchor),
             popup.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             popup.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
@@ -197,10 +192,10 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             label.centerYAnchor.constraint(equalTo: field.centerYAnchor),
-            field.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 12),
+            field.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 8),
             field.topAnchor.constraint(equalTo: container.topAnchor),
             field.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            stepper.leadingAnchor.constraint(equalTo: field.trailingAnchor, constant: 8),
+            stepper.leadingAnchor.constraint(equalTo: field.trailingAnchor, constant: 6),
             stepper.centerYAnchor.constraint(equalTo: field.centerYAnchor),
             stepper.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
         ])
@@ -212,7 +207,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let section = NSStackView()
         section.orientation = .vertical
         section.alignment = .leading
-        section.spacing = 8
+        section.spacing = 6
 
         label.font = .systemFont(ofSize: 13, weight: .semibold)
         label.textColor = .secondaryLabelColor
@@ -221,7 +216,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let separator = NSBox()
         separator.boxType = .separator
         separator.translatesAutoresizingMaskIntoConstraints = false
-        separator.widthAnchor.constraint(equalToConstant: 272).isActive = true
+        separator.widthAnchor.constraint(equalToConstant: 218).isActive = true
         section.addArrangedSubview(separator)
         return section
     }
@@ -230,7 +225,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 8
+        stack.spacing = 6
         return stack
     }
 
@@ -271,7 +266,6 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.upgradeMihomoCoreButton.title = self.tr("ui.action.upgrade_mihomo_core")
         self.flushFakeIPButton.title = self.local("清理 FakeIP 缓存", "Clear FakeIP Cache")
         self.flushDNSButton.title = self.local("清理 DNS 缓存", "Clear DNS Cache")
-        self.openCoreDirectoryButton.title = self.tr("ui.action.open_core_directory")
 
         self.languagePopup.removeAllItems()
         self.selectedLanguageMap.removeAll()
@@ -435,8 +429,4 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         }
     }
 
-    @objc
-    private func openCoreDirectory(_ sender: Any?) {
-        self.appState.showCoreDirectoryInFinder()
-    }
 }
