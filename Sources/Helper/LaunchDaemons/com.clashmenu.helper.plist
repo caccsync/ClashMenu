@@ -9,7 +9,9 @@
         <key>com.clashmenu.helper</key>
         <true/>
     </dict>
-    <key>BundleProgram</key>
-    <string>Contents/Library/HelperTools/com.clashmenu.helper</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HELPER_EXECUTABLE_PATH__</string>
+    </array>
 </dict>
 </plist>

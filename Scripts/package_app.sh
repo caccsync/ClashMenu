@@ -21,6 +21,8 @@ REQUIRE_MIHOMO_BINARY="${REQUIRE_MIHOMO_BINARY:-1}"
 BUNDLE_MIHOMO_BINARY="${BUNDLE_MIHOMO_BINARY:-1}"
 
 APP="$ROOT/dist/${APP_NAME}.app"
+APP_INSTALL_BASE="${APP_INSTALL_BASE:-/Applications}"
+APP_INSTALL_PATH="${APP_INSTALL_PATH:-$APP_INSTALL_BASE/${APP_NAME}.app}"
 HELPER_LABEL="com.clashmenu.helper"
 HELPER_PLIST_SOURCE="$ROOT/Sources/Helper/LaunchDaemons/${HELPER_LABEL}.plist"
 MODULE_CACHE_DIR="${MODULE_CACHE_DIR:-$ROOT/.build/module-cache}"
@@ -189,7 +191,9 @@ fi
 
 cp "$HELPER_BIN" "$APP/Contents/Library/HelperTools/$HELPER_LABEL"
 chmod +x "$APP/Contents/Library/HelperTools/$HELPER_LABEL"
-cp "$HELPER_PLIST_SOURCE" "$APP/Contents/Library/LaunchDaemons/${HELPER_LABEL}.plist"
+HELPER_EXECUTABLE_INSTALL_PATH="$APP_INSTALL_PATH/Contents/Library/HelperTools/$HELPER_LABEL"
+sed "s#__HELPER_EXECUTABLE_PATH__#$HELPER_EXECUTABLE_INSTALL_PATH#g" \
+  "$HELPER_PLIST_SOURCE" > "$APP/Contents/Library/LaunchDaemons/${HELPER_LABEL}.plist"
 
 ICON_PLIST_ENTRY=""
 if [ -f "$PREPROCESSED_ICON_PATH" ]; then
