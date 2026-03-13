@@ -24,10 +24,10 @@
 </div>
 
 <p align="center">
-  <img src="./imgs/start.png" alt="start" width="180" align="top" />
-  <img src="./imgs/mode.png" alt="mode" width="230" align="top" />
-  <img src="./imgs/config.png" alt="config" width="250" align="top" />
-  <img src="./imgs/setup.png" alt="setup" width="280" align="top" />
+  <img src="./imgs/start.png" alt="start" width="160" align="top" />
+  <img src="./imgs/mode.png" alt="mode" width="200" align="top" />
+  <img src="./imgs/config.png" alt="config" width="210" align="top" />
+  <img src="./imgs/setup.png" alt="setup" width="250" align="top" />
 </p>
 ---
 
