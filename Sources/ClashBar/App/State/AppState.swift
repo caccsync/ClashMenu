@@ -4,6 +4,9 @@ import SwiftUI
 
 @MainActor
 final class AppState: ObservableObject {
+    private static let defaultSystemProxyBypassList =
+        "localhost,127.0.0.1,*.local,10/8,169.254/16,172.16/12,192.168/16,apple.com,*.apple.com"
+
     @Published var statusText: String = "Stopped" {
         didSet { self.refreshMenuBarDisplaySnapshotIfNeeded() }
     }
@@ -182,6 +185,24 @@ final class AppState: ObservableObject {
         }
     }
 
+    var systemProxyBypassListText: String {
+        get {
+            let sanitized = self.normalizedSystemProxyBypassListText(self.systemProxyBypassListStorage)
+            return sanitized.isEmpty ? Self.defaultSystemProxyBypassList : sanitized
+        }
+        set {
+            let sanitized = self.normalizedSystemProxyBypassListText(newValue)
+            let valueToStore = sanitized.isEmpty ? Self.defaultSystemProxyBypassList : sanitized
+            guard self.systemProxyBypassListStorage != valueToStore else { return }
+            self.objectWillChange.send()
+            self.systemProxyBypassListStorage = valueToStore
+        }
+    }
+
+    var systemProxyBypassHosts: [String] {
+        Self.parseSystemProxyBypassHosts(self.systemProxyBypassListText)
+    }
+
     var recoveryCheckDelayNanoseconds: UInt64 {
         UInt64(self.recoveryCheckDelaySeconds) * 1_000_000_000
     }
@@ -238,6 +259,8 @@ final class AppState: ObservableObject {
     @AppStorage("clashmenu.auto.stop.core.network.loss") private var autoStopCoreOnNetworkLoss: Bool = true
     @AppStorage("clashmenu.auto.stop.core.system.sleep") private var autoStopCoreOnSystemSleep: Bool = true
     @AppStorage("clashmenu.recovery.check.delay.seconds") private var recoveryCheckDelaySecondsStorage: Int = 3
+    @AppStorage("clashmenu.system.proxy.bypass.list")
+    private var systemProxyBypassListStorage: String = AppState.defaultSystemProxyBypassList
     @AppStorage("clashmenu.core.restore_on_launch") var shouldRestoreCoreOnLaunch: Bool = false
     @AppStorage("clashmenu.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
     @AppStorage("clashmenu.system_proxy.desired") var desiredSystemProxyEnabled: Bool = false
@@ -404,6 +427,19 @@ final class AppState: ObservableObject {
         mediumFrequencyTask?.cancel()
         lowFrequencyTask?.cancel()
         providerRefreshTask?.cancel()
+    }
+
+    private func normalizedSystemProxyBypassListText(_ value: String) -> String {
+        Self.parseSystemProxyBypassHosts(value).joined(separator: ",")
+    }
+
+    private static func parseSystemProxyBypassHosts(_ value: String) -> [String] {
+        var seen = Set<String>()
+        return value
+            .split(whereSeparator: { $0 == "," || $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0.lowercased()).inserted }
     }
 
     private static func resolveBundledMihomoCoreFlag() -> Bool {

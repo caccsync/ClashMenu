@@ -108,6 +108,7 @@
 "ui.settings.auto_stop_core_on_system_sleep" = "Auto Stop Core During System Sleep";
 "ui.settings.recovery_check_delay" = "Recovery Confirmation Delay (s)";
 "ui.settings.language" = "UI Language";
+"ui.settings.system_proxy_bypass_hosts" = "Ignore These Hosts/Domains";
 "ui.settings.appearance" = "Appearance";
 "ui.settings.appearance.system" = "Follow System";
 "ui.settings.appearance.light" = "Light";

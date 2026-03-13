@@ -50,14 +50,22 @@ private final class SystemProxyConfigurator {
             hostKey: kSCPropNetProxiesSOCKSProxy as String,
             portKey: kSCPropNetProxiesSOCKSPort as String),
     ]
+    private let exceptionsListKey = kSCPropNetProxiesExceptionsList as String
 
-    func setSystemProxy(host: String, httpPort: Int, httpsPort: Int, socksPort: Int) throws {
+    func setSystemProxy(
+        host: String,
+        httpPort: Int,
+        httpsPort: Int,
+        socksPort: Int,
+        bypassHosts: [String]) throws
+    {
         try self.validate(host: host)
         let ports = try validatedPorts(
             httpPort: httpPort,
             httpsPort: httpsPort,
             socksPort: socksPort,
             requiresEnabledProxy: true)
+        let normalizedBypassHosts = self.normalizedBypassHosts(bypassHosts)
 
         try withMutableProxyProtocols { protocols in
             for proxyProtocol in protocols {
@@ -70,6 +78,7 @@ private final class SystemProxyConfigurator {
                         host: host,
                         port: portValue)
                 }
+                config[self.exceptionsListKey] = normalizedBypassHosts
 
                 guard SCNetworkProtocolSetConfiguration(proxyProtocol, config as CFDictionary) else {
                     throw self.systemConfigurationError(action: "Set proxy configuration")
@@ -85,6 +94,7 @@ private final class SystemProxyConfigurator {
                 for spec in Self.proxyEntrySpecs {
                     self.configureProxyEntry(config: &config, spec: spec, host: "", port: 0)
                 }
+                config[self.exceptionsListKey] = []
 
                 guard SCNetworkProtocolSetConfiguration(proxyProtocol, config as CFDictionary) else {
                     throw self.systemConfigurationError(action: "Clear proxy configuration")
@@ -107,13 +117,20 @@ private final class SystemProxyConfigurator {
         return false
     }
 
-    func isSystemProxyConfigured(host: String, httpPort: Int, httpsPort: Int, socksPort: Int) throws -> Bool {
+    func isSystemProxyConfigured(
+        host: String,
+        httpPort: Int,
+        httpsPort: Int,
+        socksPort: Int,
+        bypassHosts: [String]) throws -> Bool
+    {
         try self.validate(host: host)
         let ports = try validatedPorts(
             httpPort: httpPort,
             httpsPort: httpsPort,
             socksPort: socksPort,
             requiresEnabledProxy: true)
+        let normalizedBypassHosts = self.normalizedBypassHosts(bypassHosts)
 
         let preferences = try makePreferences()
         let protocols = try proxyProtocols(from: preferences)
@@ -121,6 +138,9 @@ private final class SystemProxyConfigurator {
 
         for proxyProtocol in protocols {
             let config = self.configuration(for: proxyProtocol)
+            guard self.bypassHostsMatchExpectedState(config: config, expectedBypassHosts: normalizedBypassHosts) else {
+                return false
+            }
             for (spec, expectedPort) in zip(Self.proxyEntrySpecs, expectedPorts) {
                 guard self.proxyMatchesExpectedState(
                     config: config,
@@ -290,6 +310,19 @@ private final class SystemProxyConfigurator {
             expectedPort: expectedPort)
     }
 
+    private func normalizedBypassHosts(_ hosts: [String]) -> [String] {
+        var seen = Set<String>()
+        return hosts
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0.lowercased()).inserted }
+    }
+
+    private func bypassHostsMatchExpectedState(config: [String: Any], expectedBypassHosts: [String]) -> Bool {
+        let currentHosts = self.normalizedBypassHosts(config[self.exceptionsListKey] as? [String] ?? [])
+        return currentHosts.map { $0.lowercased() } == expectedBypassHosts.map { $0.lowercased() }
+    }
+
     private func intValue(_ value: Any?) -> Int? {
         if let intValue = value as? Int {
             return intValue
@@ -318,6 +351,7 @@ private final class ProxyHelperService: NSObject, ProxyHelperProtocol {
         httpPort: Int,
         httpsPort: Int,
         socksPort: Int,
+        bypassHosts: [String],
         completion: @escaping (Bool, String?) -> Void)
     {
         do {
@@ -325,7 +359,8 @@ private final class ProxyHelperService: NSObject, ProxyHelperProtocol {
                 host: host,
                 httpPort: httpPort,
                 httpsPort: httpsPort,
-                socksPort: socksPort)
+                socksPort: socksPort,
+                bypassHosts: bypassHosts)
             completion(true, nil)
         } catch {
             completion(false, error.localizedDescription)
@@ -355,6 +390,7 @@ private final class ProxyHelperService: NSObject, ProxyHelperProtocol {
         httpPort: Int,
         httpsPort: Int,
         socksPort: Int,
+        bypassHosts: [String],
         completion: @escaping (Bool, Bool, String?) -> Void)
     {
         do {
@@ -362,7 +398,8 @@ private final class ProxyHelperService: NSObject, ProxyHelperProtocol {
                 host: host,
                 httpPort: httpPort,
                 httpsPort: httpsPort,
-                socksPort: socksPort)
+                socksPort: socksPort,
+                bypassHosts: bypassHosts)
             completion(true, configured, nil)
         } catch {
             completion(false, false, error.localizedDescription)
@@ -451,15 +488,33 @@ private final class XPCClientValidator {
 private final class ProxyHelperListenerDelegate: NSObject, NSXPCListenerDelegate {
     private let service = ProxyHelperService()
     private let validator = XPCClientValidator()
+    private let allowedBypassHostClasses = NSSet(array: [NSArray.self, NSString.self]) as? Set<AnyHashable> ?? []
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
         guard self.validator.isValid(connection: newConnection) else {
             return false
         }
-        newConnection.exportedInterface = NSXPCInterface(with: ProxyHelperProtocol.self)
+        newConnection.exportedInterface = self.makeExportedInterface()
         newConnection.exportedObject = self.service
         newConnection.resume()
         return true
+    }
+
+    private func makeExportedInterface() -> NSXPCInterface {
+        let interface = NSXPCInterface(with: ProxyHelperProtocol.self)
+        interface.setClasses(
+            self.allowedBypassHostClasses,
+            for: #selector(ProxyHelperProtocol.setSystemProxy(
+                host:httpPort:httpsPort:socksPort:bypassHosts:completion:)),
+            argumentIndex: 4,
+            ofReply: false)
+        interface.setClasses(
+            self.allowedBypassHostClasses,
+            for: #selector(ProxyHelperProtocol.isSystemProxyConfigured(
+                host:httpPort:httpsPort:socksPort:bypassHosts:completion:)),
+            argumentIndex: 4,
+            ofReply: false)
+        return interface
     }
 }
 

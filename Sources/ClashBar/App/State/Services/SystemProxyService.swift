@@ -64,12 +64,12 @@ private final class ContinuationBox<Value: Sendable>: @unchecked Sendable {
     }
 }
 
-struct SystemProxyService {
+struct SystemProxyService: Sendable {
     private let helperRecoveryMaxAttempts = 3
     private let helperRecoveryDelayNanoseconds: UInt64 = 700_000_000
     private let helperResponseTimeoutNanoseconds: UInt64 = 4_000_000_000
 
-    func applySystemProxy(enabled: Bool, host: String, ports: SystemProxyPorts) async throws {
+    func applySystemProxy(enabled: Bool, host: String, ports: SystemProxyPorts, bypassHosts: [String]) async throws {
         try self.validateHost(host)
 
         if enabled {
@@ -84,6 +84,7 @@ struct SystemProxyService {
                     httpPort: resolvedPorts.httpPort,
                     httpsPort: resolvedPorts.httpsPort,
                     socksPort: resolvedPorts.socksPort,
+                    bypassHosts: bypassHosts,
                     completion: completion)
             }
         } else {
@@ -102,7 +103,7 @@ struct SystemProxyService {
         return try await self.invokeStateQueryWithRecovery()
     }
 
-    func isSystemProxyConfigured(host: String, ports: SystemProxyPorts) async throws -> Bool {
+    func isSystemProxyConfigured(host: String, ports: SystemProxyPorts, bypassHosts: [String]) async throws -> Bool {
         try self.validateHost(host)
         let resolvedPorts = try validateAndResolvePorts(ports, requiresEnabledPort: true)
         let daemonService = self.helperService()
@@ -116,6 +117,7 @@ struct SystemProxyService {
                 httpPort: resolvedPorts.httpPort,
                 httpsPort: resolvedPorts.httpsPort,
                 socksPort: resolvedPorts.socksPort,
+                bypassHosts: bypassHosts,
                 completion: completion)
         }
     }
@@ -382,7 +384,7 @@ struct SystemProxyService {
             let connection = NSXPCConnection(
                 machServiceName: ProxyHelperConstants.machServiceName,
                 options: .privileged)
-            connection.remoteObjectInterface = NSXPCInterface(with: ProxyHelperProtocol.self)
+            connection.remoteObjectInterface = self.makeRemoteInterface()
             connection.activate()
 
             guard let helper = connection.remoteObjectProxyWithErrorHandler({ _ in
@@ -406,8 +408,26 @@ struct SystemProxyService {
         let connection = NSXPCConnection(
             machServiceName: ProxyHelperConstants.machServiceName,
             options: .privileged)
-        connection.remoteObjectInterface = NSXPCInterface(with: ProxyHelperProtocol.self)
+        connection.remoteObjectInterface = self.makeRemoteInterface()
         connection.activate()
         return connection
+    }
+
+    private func makeRemoteInterface() -> NSXPCInterface {
+        let allowedBypassHostClasses = NSSet(array: [NSArray.self, NSString.self]) as? Set<AnyHashable> ?? []
+        let interface = NSXPCInterface(with: ProxyHelperProtocol.self)
+        interface.setClasses(
+            allowedBypassHostClasses,
+            for: #selector(ProxyHelperProtocol.setSystemProxy(
+                host:httpPort:httpsPort:socksPort:bypassHosts:completion:)),
+            argumentIndex: 4,
+            ofReply: false)
+        interface.setClasses(
+            allowedBypassHostClasses,
+            for: #selector(ProxyHelperProtocol.isSystemProxyConfigured(
+                host:httpPort:httpsPort:socksPort:bypassHosts:completion:)),
+            argumentIndex: 4,
+            ofReply: false)
+        return interface
     }
 }

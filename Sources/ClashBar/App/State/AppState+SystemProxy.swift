@@ -3,7 +3,11 @@ import Foundation
 @MainActor
 extension AppState {
     func applySystemProxy(enabled: Bool, host: String, ports: SystemProxyPorts) async throws {
-        try await systemProxyService.applySystemProxy(enabled: enabled, host: host, ports: ports)
+        try await systemProxyService.applySystemProxy(
+            enabled: enabled,
+            host: host,
+            ports: ports,
+            bypassHosts: self.systemProxyBypassHosts)
     }
 
     func readSystemProxyEnabledState() async throws -> Bool {
@@ -11,7 +15,10 @@ extension AppState {
     }
 
     func isSystemProxyConfigured(host: String, ports: SystemProxyPorts) async throws -> Bool {
-        try await systemProxyService.isSystemProxyConfigured(host: host, ports: ports)
+        try await systemProxyService.isSystemProxyConfigured(
+            host: host,
+            ports: ports,
+            bypassHosts: self.systemProxyBypassHosts)
     }
 
     func systemProxyPorts(from config: ConfigSnapshot) -> SystemProxyPorts {

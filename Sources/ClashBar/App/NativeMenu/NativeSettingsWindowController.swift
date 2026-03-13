@@ -2,7 +2,7 @@ import AppKit
 import Combine
 
 @MainActor
-final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate, NSTextFieldDelegate {
+final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate, NSTextFieldDelegate, NSTextViewDelegate {
     private let appState: AppState
 
     private let launchAtLoginButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -14,6 +14,8 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     private let languageLabel = NSTextField(labelWithString: "")
     private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let generalSectionLabel = NSTextField(labelWithString: "")
+    private let proxySectionLabel = NSTextField(labelWithString: "")
+    private let systemProxyBypassLabel = NSTextField(labelWithString: "")
     private let advancedSectionLabel = NSTextField(labelWithString: "")
     private let upgradeMihomoCoreButton = NSButton(title: "", target: nil, action: nil)
     private let flushFakeIPButton = NSButton(title: "", target: nil, action: nil)
@@ -21,11 +23,39 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
 
     private var observers: [AnyCancellable] = []
     private var selectedLanguageMap: [Int: AppLanguage] = [:]
+    private var isEditingSystemProxyBypassText = false
+    private lazy var systemProxyBypassScrollView: NSScrollView = {
+        let scrollView = NSTextView.scrollableTextView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.borderType = .bezelBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        return scrollView
+    }()
+    private lazy var systemProxyBypassTextView: NSTextView = {
+        let textView = (self.systemProxyBypassScrollView.documentView as? NSTextView) ?? NSTextView()
+        textView.textContainerInset = NSSize(width: 4, height: 6)
+        textView.font = .systemFont(ofSize: 12)
+        textView.textColor = .labelColor
+        textView.backgroundColor = .textBackgroundColor
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.textContainer?.lineBreakMode = .byWordWrapping
+        textView.delegate = self
+        return textView
+    }()
 
     init(appState: AppState) {
         self.appState = appState
 
-        let contentRect = NSRect(x: 0, y: 0, width: 250, height: 360)
+        let contentRect = NSRect(x: 0, y: 0, width: 300, height: 410)
         let window = NSWindow(
             contentRect: contentRect,
             styleMask: [.titled, .closable],
@@ -72,7 +102,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = contentView
-        window.contentMinSize = NSSize(width: 250, height: 340)
+        window.contentMinSize = NSSize(width: 300, height: 390)
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -110,7 +140,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         generalContent.addArrangedSubview(recoveryDelayRow)
         generalSection.addArrangedSubview(generalContent)
         stack.addArrangedSubview(generalSection)
-        stack.setCustomSpacing(30, after: generalSection)
+        stack.setCustomSpacing(20, after: generalSection)
 
         self.launchAtLoginButton.action = #selector(self.toggleLaunchAtLogin(_:))
         self.autoStopCoreOnNetworkDisconnectButton.action = #selector(self.toggleAutoStopCoreOnNetworkDisconnect(_:))
@@ -124,6 +154,18 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
 
         self.languagePopup.target = self
         self.languagePopup.action = #selector(self.changeLanguage(_:))
+
+        let proxySection = self.makeSection(label: self.proxySectionLabel)
+        let proxyContent = self.makeSectionContentStack()
+        let bypassRow = self.makeTextViewSettingRow(
+            label: self.systemProxyBypassLabel,
+            scrollView: self.systemProxyBypassScrollView)
+        proxyContent.addArrangedSubview(bypassRow)
+        proxySection.addArrangedSubview(proxyContent)
+        stack.addArrangedSubview(proxySection)
+        stack.setCustomSpacing(30, after: proxySection)
+
+        _ = self.systemProxyBypassTextView
 
         let advancedSection = self.makeSection(label: self.advancedSectionLabel)
         let actionsRow = self.makeSectionContentStack()
@@ -203,6 +245,25 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         return container
     }
 
+    private func makeTextViewSettingRow(label: NSTextField, scrollView: NSScrollView) -> NSView {
+        let container = NSStackView()
+        container.orientation = .vertical
+        container.alignment = .leading
+        container.spacing = 4
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let contentSize = NSSize(width: 268, height: 82)
+        scrollView.widthAnchor.constraint(equalToConstant: contentSize.width).isActive = true
+        scrollView.heightAnchor.constraint(equalToConstant: contentSize.height).isActive = true
+
+        container.addArrangedSubview(label)
+        container.addArrangedSubview(scrollView)
+        return container
+    }
+
     private func makeSection(label: NSTextField) -> NSStackView {
         let section = NSStackView()
         section.orientation = .vertical
@@ -216,7 +277,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let separator = NSBox()
         separator.boxType = .separator
         separator.translatesAutoresizingMaskIntoConstraints = false
-        separator.widthAnchor.constraint(equalToConstant: 218).isActive = true
+        separator.widthAnchor.constraint(equalToConstant: 268).isActive = true
         section.addArrangedSubview(separator)
         return section
     }
@@ -246,6 +307,9 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.autoStopCoreOnSystemSleepButton.state = self.appState.autoStopCoreOnSystemSleepEnabled ? .on : .off
         self.recoveryCheckDelayField.stringValue = "\(self.appState.recoveryCheckDelaySeconds)"
         self.recoveryCheckDelayStepper.integerValue = self.appState.recoveryCheckDelaySeconds
+        if !self.isEditingSystemProxyBypassText {
+            self.systemProxyBypassTextView.string = self.formattedSystemProxyBypassListForDisplay()
+        }
         self.upgradeMihomoCoreButton.isEnabled = self.appState.isRuntimeRunning
 
         for (tag, language) in self.selectedLanguageMap where language == self.appState.uiLanguage {
@@ -257,12 +321,14 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         guard let window else { return }
         window.title = self.local("设置", "Settings")
         self.generalSectionLabel.stringValue = self.local("通用设置", "General Settings")
+        self.proxySectionLabel.stringValue = self.local("代理设置", "Proxy Settings")
         self.advancedSectionLabel.stringValue = self.local("高级操作", "Advanced")
         self.launchAtLoginButton.title = self.tr("ui.settings.launch_at_login")
         self.autoStopCoreOnNetworkDisconnectButton.title = self.tr("ui.settings.auto_stop_core_on_network_disconnect")
         self.autoStopCoreOnSystemSleepButton.title = self.tr("ui.settings.auto_stop_core_on_system_sleep")
         self.recoveryCheckDelayLabel.stringValue = self.tr("ui.settings.recovery_check_delay")
         self.languageLabel.stringValue = self.tr("ui.settings.language")
+        self.systemProxyBypassLabel.stringValue = self.tr("ui.settings.system_proxy_bypass_hosts")
         self.upgradeMihomoCoreButton.title = self.tr("ui.action.upgrade_mihomo_core")
         self.flushFakeIPButton.title = self.local("清理 FakeIP 缓存", "Clear FakeIP Cache")
         self.flushDNSButton.title = self.local("清理 DNS 缓存", "Clear DNS Cache")
@@ -362,13 +428,35 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
 
     func controlTextDidEndEditing(_ notification: Notification) {
         guard let field = notification.object as? NSTextField else { return }
-        guard field == self.recoveryCheckDelayField else { return }
-        self.applyRecoveryCheckDelay(Int(field.stringValue) ?? self.appState.recoveryCheckDelaySeconds)
+        if field == self.recoveryCheckDelayField {
+            self.applyRecoveryCheckDelay(Int(field.stringValue) ?? self.appState.recoveryCheckDelaySeconds)
+            return
+        }
     }
 
     private func applyRecoveryCheckDelay(_ seconds: Int) {
         self.appState.recoveryCheckDelaySeconds = seconds
         self.refreshFromState()
+    }
+
+    private func applySystemProxyBypassList(_ value: String) {
+        self.appState.systemProxyBypassListText = value
+        self.refreshFromState()
+    }
+
+    func textDidEndEditing(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView, textView == self.systemProxyBypassTextView else { return }
+        self.isEditingSystemProxyBypassText = false
+        self.applySystemProxyBypassList(textView.string)
+    }
+
+    func textDidBeginEditing(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView, textView == self.systemProxyBypassTextView else { return }
+        self.isEditingSystemProxyBypassText = true
+    }
+
+    private func formattedSystemProxyBypassListForDisplay() -> String {
+        self.appState.systemProxyBypassHosts.joined(separator: ",\n")
     }
 
     @objc
