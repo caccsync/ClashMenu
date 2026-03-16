@@ -44,6 +44,7 @@ final class SystemSleepWakeObserver: NSObject {
 extension AppState {
     func enforceNetworkManagedCorePolicyIfNeeded() {
         guard self.autoStopCoreOnNetworkDisconnectEnabled else { return }
+        guard self.sceneControlMode == .disabled else { return }
         guard !self.isNetworkAutomationSuppressed else { return }
 
         switch self.networkReachabilityStatus {
@@ -57,7 +58,7 @@ extension AppState {
     }
 
     func updateNetworkReachabilityMonitoringState() {
-        if self.autoStopCoreOnNetworkDisconnectEnabled || self.autoStopCoreOnSystemSleepEnabled {
+        if self.autoStopCoreOnNetworkDisconnectEnabled || self.autoStopCoreOnSystemSleepEnabled || self.sceneControlMode == .automatic {
             self.startNetworkReachabilityMonitoringIfNeeded()
             self.enforceNetworkManagedCorePolicyIfNeeded()
         } else {
@@ -112,6 +113,16 @@ extension AppState {
         let previous = self.networkReachabilityStatus
         self.networkReachabilityStatus = status
 
+        if self.sceneControlMode != .disabled,
+           previous != status,
+           status == .online,
+           !self.isNetworkAutomationSuppressed
+        {
+            self.resolveRuntimeStopReason(.networkLoss)
+            self.shouldAutoResumeManagedRuntime = false
+            self.scheduleSceneEvaluationIfNeeded(force: true)
+        }
+
         guard self.autoStopCoreOnNetworkDisconnectEnabled else { return }
         guard previous != status else { return }
         guard !self.isNetworkAutomationSuppressed else { return }
@@ -120,9 +131,29 @@ extension AppState {
         case .unknown:
             break
         case .offline:
+            self.appendLog(
+                level: "info",
+                message: self.local(
+                    "检测到网络断开，已开始等待网络状态稳定后再停止内核。",
+                    "Network disconnect detected. Waiting for the network state to stabilize before stopping the core."))
             self.scheduleAutoStopForNetworkLossIfNeeded()
         case .online:
-            self.scheduleAutoStartForNetworkRecoveryIfNeeded()
+            if self.sceneControlMode == .disabled {
+                self.appendLog(
+                    level: "info",
+                    message: self.local(
+                        "检测到网络恢复，已开始等待网络状态稳定后再恢复内核。",
+                        "Network recovery detected. Waiting for the network state to stabilize before resuming the core."))
+            } else {
+                self.appendLog(
+                    level: "info",
+                    message: self.local(
+                        "检测到网络恢复，已开始等待网络状态稳定后再重新计算场景。",
+                        "Network recovery detected. Waiting for the network state to stabilize before re-evaluating scenes."))
+            }
+            if self.sceneControlMode == .disabled {
+                self.scheduleAutoStartForNetworkRecoveryIfNeeded()
+            }
         }
     }
 
@@ -136,11 +167,15 @@ extension AppState {
         self.appendLog(level: "info", message: "系统进入休眠，已暂停网络变化自动管理。")
 
         guard self.isRuntimeRunning else {
-            self.runtimeStopReasons.insert(.systemSleep)
+            if self.sceneControlMode == .disabled {
+                self.runtimeStopReasons.insert(.systemSleep)
+            }
             return
         }
 
-        self.registerManagedCoreStop(reason: .systemSleep)
+        if self.sceneControlMode == .disabled {
+            self.registerManagedCoreStop(reason: .systemSleep)
+        }
         self.networkWakeRecoveryTask = Task { @MainActor [weak self] in
             guard let self else { return }
             guard await self.waitUntilCoreActionIdleIfNeeded() else { return }
@@ -174,6 +209,12 @@ extension AppState {
 
             self.networkReachabilitySuppressedUntil = nil
             self.resolveRuntimeStopReason(.systemSleep)
+            if self.sceneControlMode != .disabled {
+                self.shouldAutoResumeManagedRuntime = false
+                self.scheduleSceneEvaluationIfNeeded(force: true)
+                return
+            }
+
             if self.networkReachabilityStatus == .online, self.canAutoResumeManagedRuntime, !self.isRuntimeRunning {
                 self.appendLog(level: "info", message: "系统唤醒恢复：正在重新启动内核。")
                 await self.startCore(trigger: .systemWakeRecovery)
@@ -183,6 +224,7 @@ extension AppState {
                 return
             }
             self.enforceNetworkManagedCorePolicyIfNeeded()
+            self.scheduleSceneEvaluationIfNeeded(force: true)
         }
     }
 
@@ -237,7 +279,9 @@ extension AppState {
             guard self.networkReachabilityStatus == .offline else { return }
             guard self.isRuntimeRunning else { return }
 
-            self.registerManagedCoreStop(reason: .networkLoss)
+            if self.sceneControlMode == .disabled {
+                self.registerManagedCoreStop(reason: .networkLoss)
+            }
             self.appendLog(level: "warning", message: self.tr("log.network.offline_auto_stop"))
             await self.stopCore(trigger: .networkLoss)
         }

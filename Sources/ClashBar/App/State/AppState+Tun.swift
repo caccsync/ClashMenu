@@ -13,71 +13,11 @@ enum TunModeError: LocalizedError {
 
 @MainActor
 extension AppState {
-    @discardableResult
-    func toggleTunMode(_ enabled: Bool) async -> String? {
-        guard !isTunSyncing else { return nil }
-        guard enabled != desiredTunEnabled || enabled != isTunEnabled else { return nil }
-
-        isTunSyncing = true
-        let previousDesiredValue = desiredTunEnabled
-        let previousRuntimeValue = isTunEnabled
-        defer { isTunSyncing = false }
-
-        do {
-            if enabled {
-                try await self.ensureTunPermissions(requestIfMissing: true)
-            }
-
-            desiredTunEnabled = enabled
-            isTunEnabled = enabled
-            persistEditableSettingsSnapshot()
-            try await self.applyTunRuntimeChange(enabled: enabled)
-
-            appendLog(
-                level: "info",
-                message: tr("log.tun.toggled", enabled ? tr("log.tun.enabled") : tr("log.tun.disabled")))
-            return nil
-        } catch {
-            desiredTunEnabled = previousDesiredValue
-            isTunEnabled = previousRuntimeValue
-            persistEditableSettingsSnapshot()
-            let message = self.tunErrorMessage(error)
-            appendLog(level: "error", message: tr("log.tun.toggle_failed", message))
-            await self.refreshTunStatusFromRuntimeConfig()
-            return message
-        }
-    }
-
-    func prepareTunOverlayForCoreStartup(_ overlay: EditableSettingsSnapshot) async throws -> EditableSettingsSnapshot {
-        guard overlay.tunEnabled else { return overlay }
-
-        do {
-            // On app updates, bundled mihomo may lose setuid/root ownership.
-            // Request permission proactively to avoid silently disabling TUN on startup.
-            try await self.ensureTunPermissions(requestIfMissing: true)
-            return overlay
-        } catch {
-            isTunEnabled = false
-            appendLog(level: "warning", message: tr("log.tun.startup_disabled"))
-            return overlay.withTunEnabled(false)
-        }
-    }
-
-    func validateTunPermissionsOnStartup() async {
-        guard desiredTunEnabled else { return }
-        do {
-            try await self.ensureTunPermissions(requestIfMissing: false)
-        } catch {
-            do {
-                if isRuntimeRunning {
-                    try await self.patchTunConfig(enable: false)
-                }
-                isTunEnabled = false
-                appendLog(level: "warning", message: tr("log.tun.startup_disabled"))
-            } catch {
-                appendLog(level: "error", message: tr("log.tun.startup_check_failed", self.tunErrorMessage(error)))
-            }
-        }
+    func ensureTunPermissionsForConfigStartup(configPath: String) async throws {
+        guard self.configFileDeclaresTunEnabled(at: configPath) else { return }
+        // On app updates, bundled mihomo may lose setuid/root ownership.
+        // Request permission proactively before starting a config that enables TUN.
+        try await self.ensureTunPermissions(requestIfMissing: true)
     }
 
     func tunErrorMessage(_ error: Error) -> String {
@@ -143,35 +83,6 @@ extension AppState {
         }
     }
 
-    func verifyTunAfterOverlayIfNeeded(overlay: EditableSettingsSnapshot) async {
-        guard overlay.tunEnabled, isRuntimeRunning else { return }
-        guard pendingCoreFeatureRecoveryState == nil else { return }
-
-        do {
-            let config = try await fetchRuntimeConfigSnapshot()
-            if config.tunEnabled == true {
-                desiredTunEnabled = true
-                isTunEnabled = true
-                persistEditableSettingsSnapshot()
-                return
-            }
-
-            try await self.patchTunConfig(enable: true)
-            try await self.verifyTunRuntimeState(expectedEnabled: true)
-            desiredTunEnabled = true
-            persistEditableSettingsSnapshot()
-            appendLog(level: "info", message: tr("log.tun.toggled", tr("log.tun.enabled")))
-        } catch {
-            appendLog(level: "error", message: tr("log.tun.toggle_failed", self.tunErrorMessage(error)))
-        }
-    }
-
-    func applyTunRuntimeChange(enabled: Bool) async throws {
-        guard isRuntimeRunning else { return }
-        try await self.patchTunConfig(enable: enabled)
-        try await self.verifyTunRuntimeState(expectedEnabled: enabled)
-    }
-
     func verifyTunRuntimeState(expectedEnabled: Bool) async throws {
         let maxAttempts = 32
         for _ in 0..<maxAttempts {
@@ -234,6 +145,23 @@ extension AppState {
     func selectedConfigDeclaresTunStack() async -> Bool {
         guard
             let configPath = await resolveSelectedConfigPath(),
+            self.configFileDeclaresTunBlockKey("stack", at: configPath)
+        else {
+            return false
+        }
+        return true
+    }
+
+    func configFileDeclaresTunEnabled(at configPath: String) -> Bool {
+        self.configFileDeclaresTunBlockKey("enable", expectedValue: "true", at: configPath)
+    }
+
+    private func configFileDeclaresTunBlockKey(
+        _ key: String,
+        expectedValue: String? = nil,
+        at configPath: String) -> Bool
+    {
+        guard
             let raw = try? String(contentsOfFile: configPath, encoding: .utf8)
         else {
             return false
@@ -241,10 +169,15 @@ extension AppState {
 
         let lines = raw.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
         guard let tunRange = self.topLevelBlockRange(for: "tun", lines: lines) else { return false }
-        return self.childLineExists(for: "stack", lines: lines, range: tunRange)
+        return self.childLineExists(for: key, expectedValue: expectedValue, lines: lines, range: tunRange)
     }
 
-    private func childLineExists(for key: String, lines: [String], range: Range<Int>) -> Bool {
+    private func childLineExists(
+        for key: String,
+        expectedValue: String? = nil,
+        lines: [String],
+        range: Range<Int>) -> Bool
+    {
         for index in (range.lowerBound + 1)..<range.upperBound {
             let line = lines[index]
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -254,7 +187,22 @@ extension AppState {
             guard leadingSpaces > 0 else { continue }
 
             let content = String(line.dropFirst(leadingSpaces)).trimmingCharacters(in: .whitespaces)
-            if content == "\(key):" || content.hasPrefix("\(key): ") {
+            let normalizedContent = content.lowercased()
+            let keyPrefix = "\(key.lowercased()):"
+            guard normalizedContent == keyPrefix || normalizedContent.hasPrefix("\(keyPrefix) ") else {
+                continue
+            }
+
+            if let expectedValue {
+                let actualValue = normalizedContent
+                    .dropFirst(keyPrefix.count)
+                    .split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+                    .first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if actualValue == expectedValue.lowercased() {
+                    return true
+                }
+            } else {
                 return true
             }
         }

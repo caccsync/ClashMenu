@@ -58,11 +58,9 @@
 "ui.quick.system_proxy" = "系统代理";
 "ui.quick.tun_mode" = "TUN 模式";
 "ui.quick.copy_terminal" = "复制终端命令";
-"ui.quick.reload_config_list" = "重载配置文件";
 "ui.quick.import_local_config" = "导入本地配置";
 "ui.quick.import_remote_config" = "导入订阅链接";
 "ui.quick.update_remote_configs" = "更新订阅链接";
-"ui.quick.show_in_finder" = "在访达中显示";
 "ui.quick.remote.url_label" = "订阅链接";
 "ui.quick.remote.url_placeholder" = "https://example.com/config.yaml";
 "ui.quick.remote.filename_label" = "文件名";
@@ -218,7 +216,6 @@
 "log.config.remote.no_sources" = "没有可更新的订阅来源";
 "log.config.remote.update_item_failed" = "订阅更新失败（%@）: %@";
 "log.config.remote.update_summary" = "订阅更新完成：成功 %d，失败 %d";
-"log.config.show_in_finder.failed" = "在访达中打开配置目录失败: %@";
 "log.core.show_in_finder.failed" = "在访达中打开内核目录失败: %@";
 "log.config.validate_failed" = "配置校验失败（%@）: %@";
 "log.system_proxy.toggled" = "系统代理%@";

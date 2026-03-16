@@ -27,6 +27,18 @@ struct WorkingDirectoryManager {
         self.rootDirectoryURL.appendingPathComponent("state", isDirectory: true)
     }
 
+    var scenesDirectoryURL: URL {
+        self.rootDirectoryURL.appendingPathComponent("scenes", isDirectory: true)
+    }
+
+    var activeSceneConfigURL: URL {
+        self.scenesDirectoryURL.appendingPathComponent("active-scene.yaml", isDirectory: false)
+    }
+
+    var importedSceneConfigURL: URL {
+        self.scenesDirectoryURL.appendingPathComponent("scene.yaml", isDirectory: false)
+    }
+
     var coreDirectoryURL: URL {
         self.rootDirectoryURL.appendingPathComponent("core", isDirectory: true)
     }
@@ -41,6 +53,7 @@ struct WorkingDirectoryManager {
         try self.createDirectoryIfNeeded(self.configDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.logsDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.stateDirectoryURL, fileManager: fileManager)
+        try self.createDirectoryIfNeeded(self.scenesDirectoryURL, fileManager: fileManager)
         try self.createDirectoryIfNeeded(self.coreDirectoryURL, fileManager: fileManager)
     }
 

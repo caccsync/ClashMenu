@@ -226,6 +226,8 @@ $ICON_PLIST_ENTRY
 <dict>
 <key>NSAllowsArbitraryLoads</key><true/>
 </dict>
+<key>NSLocationUsageDescription</key>
+<string>ClashMenu 需要访问当前位置权限以识别当前连接的 Wi‑Fi SSID，并根据场景规则自动切换。</string>
 <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST

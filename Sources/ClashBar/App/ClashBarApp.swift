@@ -23,6 +23,7 @@ final class ClashMenuAppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.setActivationPolicy(.accessory)
         self.statusItemController = NativeStatusMenuController(appState: self.appState)
+        self.appState.requestLocationPermissionIfNeeded()
         self.appState.presentInitialNoCoreSetupGuideIfNeeded()
     }
 

@@ -14,6 +14,12 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     private let languageLabel = NSTextField(labelWithString: "")
     private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let generalSectionLabel = NSTextField(labelWithString: "")
+    private let sceneSectionLabel = NSTextField(labelWithString: "")
+    private let sceneConfigLabel = NSTextField(labelWithString: "")
+    private let sceneConfigValueLabel = NSTextField(labelWithString: "")
+    private let sceneImportLocalButton = NSButton(title: "", target: nil, action: nil)
+    private let sceneImportRemoteButton = NSButton(title: "", target: nil, action: nil)
+    private let sceneUpdateButton = NSButton(title: "", target: nil, action: nil)
     private let proxySectionLabel = NSTextField(labelWithString: "")
     private let systemProxyBypassLabel = NSTextField(labelWithString: "")
     private let advancedSectionLabel = NSTextField(labelWithString: "")
@@ -55,7 +61,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
     init(appState: AppState) {
         self.appState = appState
 
-        let contentRect = NSRect(x: 0, y: 0, width: 300, height: 410)
+        let contentRect = NSRect(x: 0, y: 0, width: 320, height: 480)
         let window = NSWindow(
             contentRect: contentRect,
             styleMask: [.titled, .closable],
@@ -102,7 +108,7 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         let contentView = NSView()
         contentView.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = contentView
-        window.contentMinSize = NSSize(width: 300, height: 390)
+        window.contentMinSize = NSSize(width: 320, height: 450)
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -154,6 +160,29 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
 
         self.languagePopup.target = self
         self.languagePopup.action = #selector(self.changeLanguage(_:))
+
+        let sceneSection = self.makeSection(label: self.sceneSectionLabel)
+        let sceneContent = self.makeSectionContentStack()
+        let sceneConfigRow = self.makeActionRow(
+            label: self.sceneConfigLabel,
+            valueLabel: self.sceneConfigValueLabel,
+            buttons: [
+                self.sceneImportLocalButton,
+                self.sceneImportRemoteButton,
+                self.sceneUpdateButton,
+            ])
+        sceneContent.addArrangedSubview(sceneConfigRow)
+        sceneSection.addArrangedSubview(sceneContent)
+        stack.addArrangedSubview(sceneSection)
+        stack.setCustomSpacing(20, after: sceneSection)
+
+        [self.sceneImportLocalButton, self.sceneImportRemoteButton, self.sceneUpdateButton].forEach { button in
+            button.bezelStyle = .rounded
+            button.target = self
+        }
+        self.sceneImportLocalButton.action = #selector(self.importSceneConfig(_:))
+        self.sceneImportRemoteButton.action = #selector(self.importRemoteSceneConfig(_:))
+        self.sceneUpdateButton.action = #selector(self.updateSceneConfig(_:))
 
         let proxySection = self.makeSection(label: self.proxySectionLabel)
         let proxyContent = self.makeSectionContentStack()
@@ -264,6 +293,30 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         return container
     }
 
+    private func makeActionRow(label: NSTextField, valueLabel: NSTextField, buttons: [NSButton]) -> NSView {
+        let container = NSStackView()
+        container.orientation = .vertical
+        container.alignment = .leading
+        container.spacing = 4
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        valueLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        valueLabel.textColor = .secondaryLabelColor
+        valueLabel.lineBreakMode = .byTruncatingMiddle
+        valueLabel.widthAnchor.constraint(equalToConstant: 288).isActive = true
+
+        let buttonRow = NSStackView(views: buttons)
+        buttonRow.orientation = .horizontal
+        buttonRow.alignment = .centerY
+        buttonRow.spacing = 8
+
+        container.addArrangedSubview(label)
+        container.addArrangedSubview(valueLabel)
+        container.addArrangedSubview(buttonRow)
+        return container
+    }
+
     private func makeSection(label: NSTextField) -> NSStackView {
         let section = NSStackView()
         section.orientation = .vertical
@@ -307,6 +360,8 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         self.autoStopCoreOnSystemSleepButton.state = self.appState.autoStopCoreOnSystemSleepEnabled ? .on : .off
         self.recoveryCheckDelayField.stringValue = "\(self.appState.recoveryCheckDelaySeconds)"
         self.recoveryCheckDelayStepper.integerValue = self.appState.recoveryCheckDelaySeconds
+        self.sceneConfigValueLabel.stringValue = self.appState.sceneConfigDisplayName
+        self.sceneUpdateButton.isEnabled = self.appState.sceneRemoteConfigURLStorage.trimmedNonEmpty != nil
         if !self.isEditingSystemProxyBypassText {
             self.systemProxyBypassTextView.string = self.formattedSystemProxyBypassListForDisplay()
         }
@@ -321,6 +376,11 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
         guard let window else { return }
         window.title = self.local("设置", "Settings")
         self.generalSectionLabel.stringValue = self.local("通用设置", "General Settings")
+        self.sceneSectionLabel.stringValue = self.local("场景设置", "Scenes")
+        self.sceneConfigLabel.stringValue = self.local("场景切换配置文件", "Scene Configuration")
+        self.sceneImportLocalButton.title = self.local("导入本地配置", "Import Local")
+        self.sceneImportRemoteButton.title = self.local("导入订阅链接", "Import Subscription")
+        self.sceneUpdateButton.title = self.local("更新", "Update")
         self.proxySectionLabel.stringValue = self.local("代理设置", "Proxy Settings")
         self.advancedSectionLabel.stringValue = self.local("高级操作", "Advanced")
         self.launchAtLoginButton.title = self.tr("ui.settings.launch_at_login")
@@ -514,6 +574,30 @@ final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate
             {
                 self.presentError(message)
             }
+        }
+    }
+
+    @objc
+    private func importSceneConfig(_ sender: Any?) {
+        self.appState.importSceneConfigurationFile()
+        self.refreshFromState()
+    }
+
+    @objc
+    private func importRemoteSceneConfig(_ sender: Any?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.appState.importRemoteSceneConfigurationFile()
+            self.refreshFromState()
+        }
+    }
+
+    @objc
+    private func updateSceneConfig(_ sender: Any?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.appState.updateRemoteSceneConfigurationFile()
+            self.refreshFromState()
         }
     }
 

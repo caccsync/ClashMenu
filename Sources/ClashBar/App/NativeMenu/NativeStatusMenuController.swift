@@ -7,6 +7,11 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     private let appState: AppState
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
+    private let sceneItem = NSMenuItem()
+    private let sceneMenu = NSMenu()
+    private let sceneDisabledItem = NSMenuItem()
+    private let sceneAutomaticItem = NSMenuItem()
+    private let sceneManualItem = NSMenuItem()
     private let runtimeStatusItem = NSMenuItem()
     private let runtimeMenu = NSMenu()
     private let startItem = NSMenuItem()
@@ -20,7 +25,6 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     private let configItem = NSMenuItem()
     private let configMenu = NSMenu()
     private let systemProxyItem = NSMenuItem()
-    private let tunModeItem = NSMenuItem()
     private let openDashboardItem = NSMenuItem()
     private let openRuntimeDirectoryItem = NSMenuItem()
     private let settingsItem = NSMenuItem()
@@ -53,8 +57,11 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         if menu == self.menu {
             self.appState.reloadConfigFileList()
+            self.appState.reloadSceneConfiguration()
             self.appState.refreshLaunchAtLoginStatus()
             self.refreshAllUI(rebuildConfigMenu: true)
+        } else if menu == self.sceneMenu {
+            self.refreshSceneMenu()
         } else if menu == self.runtimeMenu {
             self.refreshRuntimeMenu()
         } else if menu == self.modeMenu {
@@ -78,17 +85,30 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     private func configureMenu() {
         self.menu.autoenablesItems = false
+        self.sceneMenu.autoenablesItems = false
         self.runtimeMenu.autoenablesItems = false
         self.modeMenu.autoenablesItems = false
         self.configMenu.autoenablesItems = false
         self.menu.delegate = self
+        self.sceneMenu.delegate = self
         self.runtimeMenu.delegate = self
         self.modeMenu.delegate = self
         self.configMenu.delegate = self
 
+        self.sceneItem.submenu = self.sceneMenu
         self.runtimeStatusItem.submenu = self.runtimeMenu
         self.modeItem.submenu = self.modeMenu
         self.configItem.submenu = self.configMenu
+
+        self.sceneDisabledItem.target = self
+        self.sceneDisabledItem.action = #selector(self.selectSceneMode(_:))
+        self.sceneDisabledItem.representedObject = SceneControlMode.disabled.rawValue
+        self.sceneAutomaticItem.target = self
+        self.sceneAutomaticItem.action = #selector(self.selectSceneMode(_:))
+        self.sceneAutomaticItem.representedObject = SceneControlMode.automatic.rawValue
+        self.sceneManualItem.target = self
+        self.sceneManualItem.action = #selector(self.selectSceneMode(_:))
+        self.sceneManualItem.representedObject = SceneControlMode.manual.rawValue
 
         self.startItem.target = self
         self.startItem.action = #selector(self.startCore(_:))
@@ -111,8 +131,6 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
         self.systemProxyItem.target = self
         self.systemProxyItem.action = #selector(self.toggleSystemProxy(_:))
-        self.tunModeItem.target = self
-        self.tunModeItem.action = #selector(self.toggleTunMode(_:))
         self.openDashboardItem.target = self
         self.openDashboardItem.action = #selector(self.openDashboard(_:))
         self.openRuntimeDirectoryItem.target = self
@@ -125,12 +143,13 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
         self.quitItem.action = #selector(self.quitApp(_:))
 
         self.menu.items = [
+            self.sceneItem,
+            .separator(),
             self.runtimeStatusItem,
+            self.systemProxyItem,
             self.modeItem,
             self.configItem,
             .separator(),
-            self.systemProxyItem,
-            self.tunModeItem,
             self.openDashboardItem,
             self.openRuntimeDirectoryItem,
             .separator(),
@@ -153,6 +172,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     private func refreshAllUI(rebuildConfigMenu: Bool) {
         self.refreshStatusItemDisplay()
+        self.refreshSceneMenu()
         self.refreshRuntimeMenu()
         self.refreshModeMenu()
         self.refreshToggleItems()
@@ -184,7 +204,8 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     }
 
     private func refreshRuntimeMenu() {
-        let running = self.appState.processManager.isRunning
+        let running = self.appState.isRuntimeRunning
+        let controlsEnabled = self.appState.canAdjustCoreControlsManually
         self.runtimeStatusItem.attributedTitle = nil
         self.runtimeStatusItem.title = self.appState.runtimeStatusText
         self.runtimeStatusItem.state = running ? .on : .off
@@ -196,9 +217,9 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
         self.restartItem.title = self.local("重启", "Restart")
 
         let processing = self.appState.isCoreActionProcessing
-        self.startItem.isEnabled = !processing && !running
-        self.stopItem.isEnabled = !processing && running
-        self.restartItem.isEnabled = !processing
+        self.startItem.isEnabled = controlsEnabled && !processing && !running
+        self.stopItem.isEnabled = controlsEnabled && !processing && running
+        self.restartItem.isEnabled = controlsEnabled && !processing
     }
 
     private func refreshModeMenu() {
@@ -207,7 +228,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
         self.globalModeItem.title = self.local("全局模式", "Global Mode")
         self.directModeItem.title = self.local("直连模式", "Direct Mode")
 
-        let enabled = self.appState.isModeSwitchEnabled
+        let enabled = self.appState.canAdjustCoreControlsManually && self.appState.isModeSwitchEnabled
         let currentMode = self.appState.currentMode
         self.ruleModeItem.state = currentMode == .rule ? .on : .off
         self.globalModeItem.state = currentMode == .global ? .on : .off
@@ -220,11 +241,8 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     private func refreshToggleItems() {
         self.systemProxyItem.title = self.tr("ui.quick.system_proxy")
         self.systemProxyItem.state = self.appState.isSystemProxyEnabled ? .on : .off
-        self.systemProxyItem.isEnabled = self.appState.isRuntimeRunning && !self.appState.isProxySyncing
-
-        self.tunModeItem.title = self.tr("ui.quick.tun_mode")
-        self.tunModeItem.state = self.appState.desiredTunEnabled ? .on : .off
-        self.tunModeItem.isEnabled = self.appState.isRuntimeRunning && !self.appState.isTunSyncing
+        self.systemProxyItem.isEnabled =
+            self.appState.canAdjustCoreControlsManually && self.appState.isRuntimeRunning && !self.appState.isProxySyncing
     }
 
     private func refreshStaticTitlesIfNeeded() {
@@ -236,12 +254,35 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
         self.quitItem.title = self.tr("ui.action.quit")
     }
 
+    private func refreshSceneMenu() {
+        self.sceneItem.title = self.appState.sceneMenuDisplayTitle
+        self.sceneMenu.removeAllItems()
+
+        self.sceneDisabledItem.title = self.local("禁用", "Disabled")
+        self.sceneAutomaticItem.title = self.local("自动切换", "Automatic")
+        self.sceneManualItem.title = self.local("手动切换", "Manual")
+
+        self.sceneDisabledItem.state = self.appState.sceneControlMode == .disabled ? .on : .off
+        self.sceneAutomaticItem.state = self.appState.sceneControlMode == .automatic ? .on : .off
+        self.sceneManualItem.state = self.appState.sceneControlMode == .manual ? .on : .off
+
+        self.sceneMenu.addItem(self.sceneDisabledItem)
+        self.sceneMenu.addItem(self.sceneAutomaticItem)
+        self.sceneMenu.addItem(self.sceneManualItem)
+        self.sceneMenu.addItem(.separator())
+
+        for scene in self.appState.sceneDefinitions {
+            let item = NSMenuItem(title: scene.name, action: #selector(self.selectManualScene(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = scene.name
+            item.isEnabled = self.appState.sceneControlMode == .manual
+            item.state = scene.name == self.appState.activeSceneName ? .on : .off
+            self.sceneMenu.addItem(item)
+        }
+    }
+
     private func refreshConfigMenu() {
         self.configMenu.removeAllItems()
-
-        let listHeader = NSMenuItem(title: self.local("配置列表", "Config List"), action: nil, keyEquivalent: "")
-        listHeader.isEnabled = false
-        self.configMenu.addItem(listHeader)
 
         if self.appState.availableConfigFileNames.isEmpty {
             let emptyItem = NSMenuItem(title: self.local("无配置文件", "No Configurations"), action: nil, keyEquivalent: "")
@@ -253,26 +294,21 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
                 item.target = self
                 item.representedObject = fileName
                 item.state = fileName == self.appState.selectedConfigName ? .on : .off
+                item.isEnabled = self.appState.canAdjustCoreControlsManually
                 self.configMenu.addItem(item)
             }
         }
 
         self.configMenu.addItem(.separator())
-
-        let actionsHeader = NSMenuItem(title: self.local("常用操作", "Common Actions"), action: nil, keyEquivalent: "")
-        actionsHeader.isEnabled = false
-        self.configMenu.addItem(actionsHeader)
-
-        self.configMenu.addItem(self.makeMenuItem(self.tr("ui.quick.reload_config_list"), action: #selector(self.reloadConfig(_:))))
-        self.configMenu.addItem(self.makeMenuItem(self.tr("ui.quick.import_local_config"), action: #selector(self.importLocalConfig(_:))))
-        self.configMenu.addItem(self.makeMenuItem(self.tr("ui.quick.import_remote_config"), action: #selector(self.importRemoteConfig(_:))))
-        self.configMenu.addItem(self.makeMenuItem(self.tr("ui.quick.update_remote_configs"), action: #selector(self.updateRemoteConfigs(_:))))
-        self.configMenu.addItem(self.makeMenuItem(self.tr("ui.quick.show_in_finder"), action: #selector(self.showInFinder(_:))))
+        self.configMenu.addItem(self.makeMenuItem(self.tr("ui.quick.import_local_config"), action: #selector(self.importLocalConfig(_:)), enabled: self.appState.canAdjustCoreControlsManually))
+        self.configMenu.addItem(self.makeMenuItem(self.tr("ui.quick.import_remote_config"), action: #selector(self.importRemoteConfig(_:)), enabled: self.appState.canAdjustCoreControlsManually))
+        self.configMenu.addItem(self.makeMenuItem(self.tr("ui.quick.update_remote_configs"), action: #selector(self.updateRemoteConfigs(_:)), enabled: self.appState.canAdjustCoreControlsManually))
     }
 
-    private func makeMenuItem(_ title: String, action: Selector) -> NSMenuItem {
+    private func makeMenuItem(_ title: String, action: Selector, enabled: Bool = true) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
+        item.isEnabled = enabled
         return item
     }
 
@@ -310,6 +346,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func startCore(_ sender: Any?) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         Task { @MainActor [weak self] in
             await self?.appState.startCore(trigger: .manual)
             self?.refreshAllUI(rebuildConfigMenu: false)
@@ -318,6 +355,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func stopCore(_ sender: Any?) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         Task { @MainActor [weak self] in
             await self?.appState.stopCore(trigger: .manual)
             self?.refreshAllUI(rebuildConfigMenu: false)
@@ -326,6 +364,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func restartCore(_ sender: Any?) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             if self.appState.isRuntimeRunning {
@@ -339,6 +378,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func switchMode(_ sender: NSMenuItem) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         guard let rawValue = sender.representedObject as? String, let mode = CoreMode(rawValue: rawValue) else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -351,6 +391,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func selectConfig(_ sender: NSMenuItem) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         guard let fileName = sender.representedObject as? String else { return }
         Task { @MainActor [weak self] in
             await self?.appState.selectConfigFile(named: fileName)
@@ -359,17 +400,8 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     }
 
     @objc
-    private func reloadConfig(_ sender: Any?) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.appState.reloadConfig()
-            self.appState.reloadConfigFileList()
-            self.refreshAllUI(rebuildConfigMenu: true)
-        }
-    }
-
-    @objc
     private func importLocalConfig(_ sender: Any?) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         self.appState.importLocalConfigFile()
         self.appState.reloadConfigFileList()
         self.refreshAllUI(rebuildConfigMenu: true)
@@ -377,6 +409,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func importRemoteConfig(_ sender: Any?) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.appState.importRemoteConfigFile()
@@ -387,6 +420,7 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func updateRemoteConfigs(_ sender: Any?) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.appState.updateAllRemoteConfigFiles()
@@ -396,28 +430,12 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     }
 
     @objc
-    private func showInFinder(_ sender: Any?) {
-        self.appState.showSelectedConfigInFinder()
-    }
-
-    @objc
     private func toggleSystemProxy(_ sender: Any?) {
+        guard self.appState.canAdjustCoreControlsManually else { return }
         let target = !self.appState.isSystemProxyEnabled
         Task { @MainActor [weak self] in
             guard let self else { return }
             if let message = await self.appState.toggleSystemProxy(target) {
-                self.presentError(message)
-            }
-            self.refreshAllUI(rebuildConfigMenu: false)
-        }
-    }
-
-    @objc
-    private func toggleTunMode(_ sender: Any?) {
-        let target = !self.appState.desiredTunEnabled
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            if let message = await self.appState.toggleTunMode(target) {
                 self.presentError(message)
             }
             self.refreshAllUI(rebuildConfigMenu: false)
@@ -485,6 +503,24 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
         default:
             return "-"
         }
+    }
+
+    @objc
+    private func selectSceneMode(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let mode = SceneControlMode(rawValue: rawValue)
+        else {
+            return
+        }
+        self.appState.setSceneControlMode(mode)
+        self.refreshAllUI(rebuildConfigMenu: true)
+    }
+
+    @objc
+    private func selectManualScene(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        self.appState.selectManualScene(named: name)
+        self.refreshAllUI(rebuildConfigMenu: true)
     }
 
     @objc

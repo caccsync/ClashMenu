@@ -4,10 +4,9 @@ import Foundation
 @MainActor
 extension AppState {
     private struct CoreBootstrapOptions {
-        let overlaySyncingKey: String
         let providerTrigger: ProviderRefreshTrigger
         let refreshProxyGroupsAfterBootstrap: Bool
-        let refreshSystemProxyBeforeOverlay: Bool
+        let refreshSystemProxyBeforeBootstrap: Bool
         let refreshSystemProxyAfterBootstrap: Bool
     }
 
@@ -19,9 +18,6 @@ extension AppState {
         }
         coreActionState = .starting
         defer { coreActionState = .idle }
-        var settingsOverlay = currentEditableSettingsSnapshot()
-        settingsOverlay = self.overlayApplyingPendingCoreFeatureRecovery(settingsOverlay)
-        preserveLocalSettingsOnNextSync = true
         do {
             guard let configPath = await resolveSelectedConfigPath() else {
                 let message = tr("log.start.no_config")
@@ -38,10 +34,9 @@ extension AppState {
                 return
             }
 
-            settingsOverlay = try await prepareTunOverlayForCoreStartup(settingsOverlay)
+            try await ensureTunPermissionsForConfigStartup(configPath: configPath)
 
             guard await self.validateConfigBeforeCoreLaunch(configPath: configPath) else {
-                preserveLocalSettingsOnNextSync = false
                 if trigger == .auto {
                     let fileName = URL(fileURLWithPath: configPath).lastPathComponent
                     startupErrorMessage = tr("app.config.validation_failed.startup", fileName)
@@ -60,18 +55,15 @@ extension AppState {
 
             await self.completeCoreBootstrap(
                 configPath: configPath,
-                settingsOverlay: settingsOverlay,
                 options: CoreBootstrapOptions(
-                    overlaySyncingKey: "start-overlay",
                     providerTrigger: .start,
                     refreshProxyGroupsAfterBootstrap: false,
-                    refreshSystemProxyBeforeOverlay: true,
+                    refreshSystemProxyBeforeBootstrap: true,
                     refreshSystemProxyAfterBootstrap: false))
             self.handleSuccessfulCoreStart(trigger: trigger)
             self.shouldRestoreCoreOnLaunch = true
         } catch {
             let errorMessage = self.coreErrorMessage(error)
-            preserveLocalSettingsOnNextSync = false
             let message = tr("log.start.failed", errorMessage)
             appendLog(level: "error", message: message)
             self.presentCoreFailureAlert(
@@ -101,7 +93,6 @@ extension AppState {
         defer { coreActionState = .idle }
         await self.prepareCoreFeatureRecoveryBeforeCoreTransition(
             fallbackRecovery: recoverySnapshotBeforeStop)
-        self.cancelDeferredEditableSettingsOverlaySync()
         cancelProviderRefresh(reason: "stop requested")
         await processManager.stopAsync()
         cancelPolling()
@@ -113,7 +104,6 @@ extension AppState {
         guard !isCoreActionProcessing else { return }
         coreActionState = .restarting
         defer { coreActionState = .idle }
-        preserveLocalSettingsOnNextSync = true
         cancelProviderRefresh(reason: "restart requested")
         do {
             guard let configPath = await resolveSelectedConfigPath() else {
@@ -126,8 +116,9 @@ extension AppState {
                 return
             }
 
+            try await ensureTunPermissionsForConfigStartup(configPath: configPath)
+
             guard await self.validateConfigBeforeCoreLaunch(configPath: configPath) else {
-                preserveLocalSettingsOnNextSync = false
                 return
             }
 
@@ -135,20 +126,16 @@ extension AppState {
             let recoverySnapshotBeforeRestart = self.currentCoreFeatureRecoverySnapshot()
             await self.prepareCoreFeatureRecoveryBeforeCoreTransition(
                 fallbackRecovery: recoverySnapshotBeforeRestart)
-            let settingsOverlay = self.overlayApplyingPendingCoreFeatureRecovery(currentEditableSettingsSnapshot())
             _ = try await processManager.restartAsync(configPath: configPath, controller: launchController)
             await self.completeCoreBootstrap(
                 configPath: configPath,
-                settingsOverlay: settingsOverlay,
                 options: CoreBootstrapOptions(
-                    overlaySyncingKey: "restart-overlay",
                     providerTrigger: trigger,
                     refreshProxyGroupsAfterBootstrap: true,
-                    refreshSystemProxyBeforeOverlay: false,
+                    refreshSystemProxyBeforeBootstrap: false,
                     refreshSystemProxyAfterBootstrap: true))
         } catch {
             let errorMessage = self.coreErrorMessage(error)
-            preserveLocalSettingsOnNextSync = false
             let message = tr("log.restart.failed", errorMessage)
             appendLog(level: "error", message: message)
             self.presentCoreFailureAlert(
@@ -235,7 +222,6 @@ extension AppState {
         self.shouldAutoResumeManagedRuntime = false
         stopNetworkReachabilityMonitoring(resetState: true)
         stopConfigDirectoryMonitoring()
-        self.cancelDeferredEditableSettingsOverlaySync()
         cancelProviderRefresh(reason: "quit requested")
         cancelPolling()
     }
@@ -358,15 +344,12 @@ extension AppState {
         guard previousPath != nextPath else { return }
         guard processManager.isRunning else { return }
 
-        pendingConfigSwitchOverlaySettings = currentEditableSettingsSnapshot()
-        preserveLocalSettingsOnNextSync = true
         proxyGroups = []
         groupLatencies = [:]
         groupLatencyLoading = []
         appendLog(level: "info", message: tr("log.config.changed_restart"))
         cancelProviderRefresh(reason: "config switch requested")
         await self.restartCore(trigger: .configSwitch)
-        await applyPendingConfigSwitchSettingsOverlayIfNeeded()
     }
 
     func refreshProxyGroupsAfterRestart() async {
@@ -385,7 +368,6 @@ extension AppState {
 
     private func completeCoreBootstrap(
         configPath: String,
-        settingsOverlay: EditableSettingsSnapshot,
         options: CoreBootstrapOptions) async
     {
         statusText = "Running"
@@ -394,12 +376,7 @@ extension AppState {
         startPolling()
         await refreshFromAPI(includeSlowCalls: true)
 
-        await self.syncEditableSettingsOverlayForCoreBootstrap(
-            settingsOverlay,
-            syncingKey: options.overlaySyncingKey)
-        await validateTunPermissionsOnStartup()
         await ensureTunMixedStackOnStartupIfNeeded()
-        await self.verifyTunAfterOverlayIfNeeded(overlay: settingsOverlay)
         enqueueProviderRefresh(trigger: options.providerTrigger)
 
         if options.refreshProxyGroupsAfterBootstrap {
@@ -408,28 +385,20 @@ extension AppState {
 
         // Keep startup responsive even when helper registration or system proxy reads are slow.
         scheduleSystemProxyStartupPostflight(
-            refreshStatusBeforeOverlay: options.refreshSystemProxyBeforeOverlay,
+            refreshStatusBeforeOverlay: options.refreshSystemProxyBeforeBootstrap,
             refreshStatusAfterBootstrap: options.refreshSystemProxyAfterBootstrap)
 
         defaults.set(configPath, forKey: lastSuccessfulConfigPathKey)
         startupErrorMessage = nil
         await self.restoreCoreFeaturesAfterStartupIfNeeded()
+        await self.refreshTunStatusFromRuntimeConfig()
         enforceNetworkManagedCorePolicyIfNeeded()
-    }
-
-    private func overlayApplyingPendingCoreFeatureRecovery(_ overlay: EditableSettingsSnapshot)
-        -> EditableSettingsSnapshot
-    {
-        guard let recovery = self.pendingCoreFeatureRecoveryState else { return overlay }
-        guard recovery.tunEnabled else { return overlay }
-        return overlay.withTunEnabled(true)
     }
 
     private func currentCoreFeatureRecoverySnapshot() -> CoreFeatureRecoveryState {
         self.mergeCoreFeatureRecoveryStates(
             CoreFeatureRecoveryState(
-                systemProxyEnabled: self.isSystemProxyEnabled,
-                tunEnabled: self.desiredTunEnabled || self.isTunEnabled),
+                systemProxyEnabled: self.isSystemProxyEnabled),
             self.pendingCoreFeatureRecoveryState)
     }
 
@@ -438,8 +407,7 @@ extension AppState {
         _ second: CoreFeatureRecoveryState?) -> CoreFeatureRecoveryState
     {
         CoreFeatureRecoveryState(
-            systemProxyEnabled: (first?.systemProxyEnabled ?? false) || (second?.systemProxyEnabled ?? false),
-            tunEnabled: (first?.tunEnabled ?? false) || (second?.tunEnabled ?? false))
+            systemProxyEnabled: (first?.systemProxyEnabled ?? false) || (second?.systemProxyEnabled ?? false))
     }
 
     private func prepareCoreFeatureRecoveryBeforeCoreTransition(
@@ -447,8 +415,7 @@ extension AppState {
     {
         let runtimeRunningBeforeTransition = self.isRuntimeRunning
         let capturedRecovery = CoreFeatureRecoveryState(
-            systemProxyEnabled: runtimeRunningBeforeTransition && self.isSystemProxyEnabled,
-            tunEnabled: runtimeRunningBeforeTransition && (self.desiredTunEnabled || self.isTunEnabled))
+            systemProxyEnabled: runtimeRunningBeforeTransition && self.isSystemProxyEnabled)
 
         let baseRecovery: CoreFeatureRecoveryState = if capturedRecovery.shouldRecoverAnyFeature {
             capturedRecovery
@@ -459,11 +426,6 @@ extension AppState {
 
         let recovery = self.mergeCoreFeatureRecoveryStates(baseRecovery, self.pendingCoreFeatureRecoveryState)
         self.pendingCoreFeatureRecoveryState = recovery.shouldRecoverAnyFeature ? recovery : nil
-
-        if runtimeRunningBeforeTransition, recovery.tunEnabled {
-            self.isTunEnabled = false
-            self.appendLog(level: "info", message: self.tr("log.tun.toggled", self.tr("log.tun.disabled")))
-        }
 
         guard self.isSystemProxyEnabled else { return }
         self.isProxySyncing = true
@@ -496,26 +458,6 @@ extension AppState {
         }
 
         var remainingSystemProxyRecovery = recovery.systemProxyEnabled
-        var remainingTunRecovery = recovery.tunEnabled
-
-        if recovery.tunEnabled {
-            do {
-                let runtimeConfig = try await self.fetchRuntimeConfigSnapshot()
-                if runtimeConfig.tunEnabled != true {
-                    try await self.patchTunConfig(enable: true)
-                    try await self.verifyTunRuntimeState(expectedEnabled: true)
-                }
-
-                if self.isTunEnabled {
-                    remainingTunRecovery = false
-                    self.appendLog(level: "info", message: self.tr("log.tun.toggled", self.tr("log.tun.enabled")))
-                }
-            } catch {
-                self.appendLog(
-                    level: "error",
-                    message: self.tr("log.tun.toggle_failed", self.tunErrorMessage(error)))
-            }
-        }
 
         if recovery.systemProxyEnabled {
             self.isProxySyncing = true
@@ -538,8 +480,7 @@ extension AppState {
         }
 
         let remaining = CoreFeatureRecoveryState(
-            systemProxyEnabled: remainingSystemProxyRecovery,
-            tunEnabled: remainingTunRecovery)
+            systemProxyEnabled: remainingSystemProxyRecovery)
         self.pendingCoreFeatureRecoveryState = remaining.shouldRecoverAnyFeature ? remaining : nil
     }
 }

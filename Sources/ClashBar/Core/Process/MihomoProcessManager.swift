@@ -105,13 +105,7 @@ final class MihomoProcessManager: MihomoControlling, @unchecked Sendable {
     func validateConfig(configPath: String) throws {
         let binary = try resolveMihomoBinary()
 
-        let configFileURL = URL(fileURLWithPath: configPath).standardizedFileURL.resolvingSymlinksInPath()
-        let configDirectoryURL = configFileURL.deletingLastPathComponent()
-        let workingDirectoryURL: URL = if configDirectoryURL.lastPathComponent == "config" {
-            configDirectoryURL.deletingLastPathComponent()
-        } else {
-            configDirectoryURL
-        }
+        let workingDirectoryURL = self.runtimeWorkingDirectoryURL(forConfigPath: configPath)
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binary)
@@ -191,13 +185,7 @@ final class MihomoProcessManager: MihomoControlling, @unchecked Sendable {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binary)
 
-        let configFileURL = URL(fileURLWithPath: configPath).standardizedFileURL.resolvingSymlinksInPath()
-        let configDirectoryURL = configFileURL.deletingLastPathComponent()
-        let workingDirectoryURL: URL = if configDirectoryURL.lastPathComponent == "config" {
-            configDirectoryURL.deletingLastPathComponent()
-        } else {
-            configDirectoryURL
-        }
+        let workingDirectoryURL = self.runtimeWorkingDirectoryURL(forConfigPath: configPath)
         proc.currentDirectoryURL = workingDirectoryURL
 
         // `-d` pins mihomo runtime home directory to ClashMenu working root.
@@ -251,6 +239,26 @@ final class MihomoProcessManager: MihomoControlling, @unchecked Sendable {
             self.onLog?("[mihomo error] \(reason)")
             throw error
         }
+    }
+
+    private func runtimeWorkingDirectoryURL(forConfigPath configPath: String) -> URL {
+        let rootDirectoryURL = self.workingDirectoryManager.rootDirectoryURL
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+        let configFileURL = URL(fileURLWithPath: configPath)
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+        let configDirectoryURL = configFileURL.deletingLastPathComponent()
+
+        if configDirectoryURL.pathComponents.starts(with: rootDirectoryURL.pathComponents) {
+            return rootDirectoryURL
+        }
+
+        if configDirectoryURL.lastPathComponent == "config" {
+            return configDirectoryURL.deletingLastPathComponent()
+        }
+
+        return configDirectoryURL
     }
 
     @discardableResult

@@ -12,13 +12,19 @@ let package = Package(
         .executable(name: "ClashMenu", targets: ["ClashMenu"]),
         .executable(name: "ClashMenuProxyHelper", targets: ["ClashMenuProxyHelper"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/jpsim/Yams.git", from: "6.0.1"),
+    ],
     targets: [
         .target(
             name: "ProxyHelperShared",
             path: "Sources/Helper/Shared"),
         .executableTarget(
             name: "ClashMenu",
-            dependencies: ["ProxyHelperShared"],
+            dependencies: [
+                "ProxyHelperShared",
+                .product(name: "Yams", package: "Yams"),
+            ],
             path: "Sources/ClashBar",
             resources: [
                 .copy("Resources/bin"),

@@ -268,18 +268,6 @@ extension AppState {
         }
     }
 
-    func showSelectedConfigInFinder() {
-        guard let configDirectory = ensureConfigDirectoryAvailable() else { return }
-        if let selected = configManager.selectedConfig, FileManager.default.fileExists(atPath: selected.path) {
-            NSWorkspace.shared.activateFileViewerSelecting([selected])
-            return
-        }
-
-        if !NSWorkspace.shared.open(configDirectory) {
-            appendLog(level: "error", message: tr("log.config.show_in_finder.failed", configDirectory.path))
-        }
-    }
-
     func showCoreDirectoryInFinder() {
         do {
             try workingDirectoryManager.bootstrapDirectories()
@@ -304,12 +292,11 @@ extension AppState {
 
     func reloadConfig() async {
         let actionName = tr("log.action_name.reload_config")
-        let expectedTunEnabled = desiredTunEnabled
 
         do {
             ensureAPIClient()
             try await self.clientOrThrow().requestNoResponse(.putConfigs(force: false))
-            try await self.restoreTunAfterConfigReloadIfNeeded(expectedEnabled: expectedTunEnabled)
+            await self.refreshTunStatusFromRuntimeConfig()
             appendLog(level: "info", message: tr("log.action.success", actionName))
         } catch {
             appendLog(level: "error", message: tr("log.action.failed", actionName, error.localizedDescription))
@@ -456,7 +443,7 @@ extension AppState {
         try await configImportService.downloadRemoteConfigData(from: remoteURL, userAgent: userAgent)
     }
 
-    private func remoteSubscriptionUserAgent() async -> String {
+    func remoteSubscriptionUserAgent() async -> String {
         let version = await resolvedMihomoVersionForSubscriptionUserAgent()
         return "clash.meta/\(version)"
     }
@@ -490,12 +477,6 @@ extension AppState {
         let trimmed = rawVersion.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != "-" else { return nil }
         return trimmed
-    }
-
-    private func restoreTunAfterConfigReloadIfNeeded(expectedEnabled: Bool) async throws {
-        guard isRuntimeRunning else { return }
-        try await self.patchTunConfig(enable: expectedEnabled)
-        try await self.verifyTunRuntimeState(expectedEnabled: expectedEnabled)
     }
 
     private func updateRemoteConfigSource(for fileName: String, urlString: String?) {

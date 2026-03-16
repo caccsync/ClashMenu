@@ -8,6 +8,17 @@ enum RuntimeVisualStatus {
     case failed
 }
 
+enum SceneControlMode: String, CaseIterable {
+    case disabled
+    case automatic
+    case manual
+}
+
+enum SceneAction: String {
+    case start
+    case stop
+}
+
 enum StartTrigger {
     case manual
     case auto
@@ -113,37 +124,9 @@ struct MenuBarDisplay: Equatable {
 
 struct CoreFeatureRecoveryState {
     let systemProxyEnabled: Bool
-    let tunEnabled: Bool
 
     var shouldRecoverAnyFeature: Bool {
-        self.systemProxyEnabled || self.tunEnabled
-    }
-}
-
-struct EditableSettingsSnapshot: Equatable, Codable {
-    let tunEnabled: Bool
-
-    private enum CodingKeys: String, CodingKey {
-        case tunEnabled
-    }
-
-    init(config: ConfigSnapshot) {
-        self.tunEnabled = config.tunEnabled ?? false
-    }
-
-    init(tunEnabled: Bool) {
-        self.tunEnabled = tunEnabled
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.tunEnabled = try container.decodeIfPresent(Bool.self, forKey: .tunEnabled) ?? false
-    }
-}
-
-extension EditableSettingsSnapshot {
-    func withTunEnabled(_ enabled: Bool) -> EditableSettingsSnapshot {
-        EditableSettingsSnapshot(tunEnabled: enabled)
+        self.systemProxyEnabled
     }
 }
 

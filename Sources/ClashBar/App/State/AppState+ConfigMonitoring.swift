@@ -40,6 +40,10 @@ extension AppState {
         {
             self.pendingConfigChangeRestart = false
             self.appendLog(level: "info", message: self.tr("log.config.changed_restart"))
+            if self.sceneControlMode != .disabled {
+                await self.evaluateAndApplyScene(force: true)
+                return
+            }
             await self.restartCore(trigger: .configSwitch)
             return
         }
@@ -72,14 +76,15 @@ extension AppState {
         guard self.isRuntimeRunning else { return }
 
         if self.isCoreActionProcessing {
-            // Skip restart chaining for in-flight TUN operations; those already include a controlled restart.
-            if !self.isTunSyncing {
-                self.pendingConfigChangeRestart = true
-            }
+            self.pendingConfigChangeRestart = true
             return
         }
 
         self.appendLog(level: "info", message: self.tr("log.config.changed_restart"))
+        if self.sceneControlMode != .disabled {
+            await self.evaluateAndApplyScene(force: true)
+            return
+        }
         await self.restartCore(trigger: .configSwitch)
     }
 

@@ -1,4 +1,5 @@
 import AppKit
+import CoreLocation
 import Foundation
 import SwiftUI
 
@@ -50,7 +51,6 @@ final class AppState: ObservableObject {
     @Published var isSystemProxyEnabled: Bool = false
     @Published var isProxySyncing: Bool = false
     @Published var isTunEnabled: Bool = false
-    @Published var isTunSyncing: Bool = false
 
     @Published var apiStatus: APIHealth = .unknown {
         didSet { self.refreshMenuBarDisplaySnapshotIfNeeded() }
@@ -65,6 +65,11 @@ final class AppState: ObservableObject {
     @Published var launchAtLoginEnabled: Bool = false
     @Published var launchAtLoginErrorMessage: String?
     @Published var latestAppReleaseInfo: AppReleaseInfo?
+    @Published var sceneConfigDisplayName: String = "-"
+    @Published var sceneDefinitions: [SceneDefinition] = []
+    @Published var activeSceneName: String?
+    @Published var activeSceneSSID: String?
+    @Published var sceneStatusMessage: String?
     @Published private(set) var menuBarDisplaySnapshot = MenuBarDisplay(
         symbolName: "bolt.slash.circle",
         brandIconState: .stopped)
@@ -72,11 +77,6 @@ final class AppState: ObservableObject {
     @Published var settingsSyncingKey: String?
     @Published var settingsErrorMessage: String?
     @Published var settingsSavedMessage: String?
-    var lastSyncedEditableSettings: EditableSettingsSnapshot?
-    var preserveLocalSettingsOnNextSync = false
-    var pendingConfigSwitchOverlaySettings: EditableSettingsSnapshot?
-    var pendingAppLaunchOverlaySettings: EditableSettingsSnapshot?
-    var suppressSettingsPersistence = false
 
     var runtimeVisualStatus: RuntimeVisualStatus {
         let normalized = self.statusText.lowercased()
@@ -153,8 +153,40 @@ final class AppState: ObservableObject {
         self.processManager.isRunning && self.apiStatus == .healthy
     }
 
-    var isTunToggleEnabled: Bool {
-        self.isRuntimeRunning && !self.isCoreActionProcessing && !self.isTunSyncing
+    var sceneControlMode: SceneControlMode {
+        get { SceneControlMode(rawValue: self.sceneControlModeStorage) ?? .disabled }
+        set {
+            guard self.sceneControlMode != newValue else { return }
+            self.objectWillChange.send()
+            self.sceneControlModeStorage = newValue.rawValue
+            self.updateNetworkReachabilityMonitoringState()
+        }
+    }
+
+    var manualSceneName: String? {
+        let trimmed = self.manualSceneNameStorage.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var isSceneControlEnabled: Bool {
+        self.sceneControlMode != .disabled
+    }
+
+    var canAdjustCoreControlsManually: Bool {
+        !self.isSceneControlEnabled
+    }
+
+    var sceneMenuDisplayTitle: String {
+        switch self.sceneControlMode {
+        case .disabled:
+            return self.local("场景已禁用", "Scenes Disabled")
+        case .automatic:
+            let sceneName = self.activeSceneName ?? self.local("未匹配", "Unmatched")
+            return self.local("自动-\(sceneName)", "Auto-\(sceneName)")
+        case .manual:
+            let sceneName = self.activeSceneName ?? self.manualSceneName ?? self.local("未选择", "Unselected")
+            return self.local("手动-\(sceneName)", "Manual-\(sceneName)")
+        }
     }
 
     var autoStopCoreOnNetworkDisconnectEnabled: Bool {
@@ -233,6 +265,9 @@ final class AppState: ObservableObject {
     let configImportService: ConfigImportService
     let appLaunchService: AppLaunchService
     let networkReachabilityMonitor: NetworkReachabilityMonitor
+    let sceneConfigurationService: SceneConfigurationService
+    let wifiNetworkService: WiFiNetworkService
+    let locationPermissionService: LocationPermissionService
     var apiClient: MihomoAPIClient?
     var modeSwitchTransportOverride: MihomoAPITransporting?
     var settingsPatchTransportOverride: MihomoAPITransporting?
@@ -244,7 +279,7 @@ final class AppState: ObservableObject {
     var networkAutoStopTask: Task<Void, Never>?
     var networkAutoStartTask: Task<Void, Never>?
     var networkWakeRecoveryTask: Task<Void, Never>?
-    var deferredEditableSettingsOverlayTask: Task<Void, Never>?
+    var sceneEvaluationTask: Task<Void, Never>?
     var configDirectoryMonitorTask: Task<Void, Never>?
     var mihomoLogFlushTask: Task<Void, Never>?
     var providerRefreshGeneration: Int = 0
@@ -261,15 +296,19 @@ final class AppState: ObservableObject {
     @AppStorage("clashmenu.recovery.check.delay.seconds") private var recoveryCheckDelaySecondsStorage: Int = 3
     @AppStorage("clashmenu.system.proxy.bypass.list")
     private var systemProxyBypassListStorage: String = AppState.defaultSystemProxyBypassList
+    @AppStorage("clashmenu.scene.mode") var sceneControlModeStorage: String = SceneControlMode.disabled.rawValue
+    @AppStorage("clashmenu.scene.manual.name") var manualSceneNameStorage: String = ""
+    @AppStorage("clashmenu.scene.config.path") var sceneConfigPathStorage: String = ""
+    @AppStorage("clashmenu.scene.config.remote.url") var sceneRemoteConfigURLStorage: String = ""
     @AppStorage("clashmenu.core.restore_on_launch") var shouldRestoreCoreOnLaunch: Bool = false
     @AppStorage("clashmenu.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
     @AppStorage("clashmenu.system_proxy.desired") var desiredSystemProxyEnabled: Bool = false
-    @AppStorage("clashmenu.tun.desired") var desiredTunEnabled: Bool = false
     let selectedConfigKey = "clashmenu.config.selected.filename"
     let legacySelectedConfigKey = "clashmenu.config.selected"
     let remoteConfigSourcesKey = "clashmenu.config.remote.sources.v1"
     let lastSuccessfulConfigPathKey = "clashmenu.last.success.config.path"
-    let editableSettingsSnapshotKey = "clashmenu.settings.editable.snapshot.v1"
+    let legacyDesiredTunEnabledKey = "clashmenu.tun.desired"
+    let legacyEditableSettingsSnapshotKey = "clashmenu.settings.editable.snapshot.v1"
     let uiLanguageKey = "clashmenu.ui.language"
     let appearanceModeKey = "clashmenu.ui.appearance.mode"
     let hiddenPanelMaxInMemoryLogEntries = 20
@@ -302,8 +341,9 @@ final class AppState: ObservableObject {
     var isNetworkReachabilityMonitoring = false
     var isSystemSleeping = false
     var systemSleepWakeObserver: SystemSleepWakeObserver?
+    var activeSceneRuntimeConfigPath: String?
+    var lastAppliedSceneSignature: String?
     var pendingCoreFeatureRecoveryState: CoreFeatureRecoveryState?
-    var deferredEditableSettingsOverlay: (snapshot: EditableSettingsSnapshot, syncingKey: String)?
     var remoteConfigSources: [String: String] = [:]
     var externalControllerWarningKeys: Set<String> = []
     let streamJSONDecoder = JSONDecoder()
@@ -320,6 +360,9 @@ final class AppState: ObservableObject {
         configImportService: ConfigImportService = ConfigImportService(),
         appLaunchService: AppLaunchService = AppLaunchService(),
         networkReachabilityMonitor: NetworkReachabilityMonitor = NetworkReachabilityMonitor(),
+        sceneConfigurationService: SceneConfigurationService = SceneConfigurationService(),
+        wifiNetworkService: WiFiNetworkService = WiFiNetworkService(),
+        locationPermissionService: LocationPermissionService = LocationPermissionService(),
         clashmenuLogStore: AppLogStore? = nil,
         mihomoLogStore: AppLogStore? = nil,
         startBackgroundRefresh: Bool = true)
@@ -331,6 +374,9 @@ final class AppState: ObservableObject {
         self.configImportService = configImportService
         self.appLaunchService = appLaunchService
         self.networkReachabilityMonitor = networkReachabilityMonitor
+        self.sceneConfigurationService = sceneConfigurationService
+        self.wifiNetworkService = wifiNetworkService
+        self.locationPermissionService = locationPermissionService
         self.clashmenuLogStore = clashmenuLogStore
         self.mihomoLogStore = mihomoLogStore
         self.configManager = configManager ?? ConfigDirectoryManager(workingDirectoryManager: workingDirectoryManager)
@@ -388,23 +434,18 @@ final class AppState: ObservableObject {
         restoreLastSuccessfulConfigIfAvailable()
         self.remoteConfigSources = loadPersistedRemoteConfigSources()
         pruneRemoteConfigSourcesIfNeeded()
-        if let persisted = loadPersistedEditableSettingsSnapshot() {
-            applyEditableSettingsSnapshotToUI(persisted)
-            self.preserveLocalSettingsOnNextSync = true
-            self.pendingAppLaunchOverlaySettings = persisted
-        }
+        self.clearLegacyTunPreferences()
 
         if startBackgroundRefresh {
             Task {
                 await refreshFromAPI(includeSlowCalls: true)
-                await applyPendingAppLaunchSettingsOverlayIfNeeded()
                 await refreshSystemProxyStatus()
                 await ensureSystemProxyConsistencyOnFirstLaunchIfNeeded()
             }
 
             self.startConfigDirectoryMonitoringIfNeeded()
         }
-        if startBackgroundRefresh, self.shouldRestoreCoreOnLaunch {
+        if startBackgroundRefresh, self.shouldRestoreCoreOnLaunch, self.sceneControlMode == .disabled {
             if !self.shouldDeferAutoStartForMissingManagedCore() {
                 Task { [weak self] in
                     await self?.attemptLaunchStateRestoreIfNeeded()
@@ -413,7 +454,9 @@ final class AppState: ObservableObject {
         }
 
         self.configureSystemSleepWakeObservationIfNeeded()
+        self.reloadSceneConfiguration()
         self.updateNetworkReachabilityMonitoringState()
+        self.scheduleSceneEvaluationIfNeeded(force: true)
         self.refreshMenuBarDisplaySnapshotIfNeeded()
     }
 
@@ -421,7 +464,7 @@ final class AppState: ObservableObject {
         networkAutoStopTask?.cancel()
         networkAutoStartTask?.cancel()
         networkWakeRecoveryTask?.cancel()
-        deferredEditableSettingsOverlayTask?.cancel()
+        sceneEvaluationTask?.cancel()
         configDirectoryMonitorTask?.cancel()
         mihomoLogFlushTask?.cancel()
         mediumFrequencyTask?.cancel()
@@ -454,5 +497,9 @@ final class AppState: ObservableObject {
             return NSString(string: string).boolValue
         }
         return true
+    }
+
+    func local(_ zh: String, _ en: String) -> String {
+        self.uiLanguage == .zhHans ? zh : en
     }
 }

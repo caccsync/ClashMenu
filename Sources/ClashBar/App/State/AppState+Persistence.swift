@@ -3,6 +3,14 @@ import Foundation
 @MainActor
 extension AppState {
     func resolveSelectedConfigPath() async -> String? {
+        if self.sceneControlMode != .disabled,
+           let sceneConfigPath = self.activeSceneRuntimeConfigPath,
+           !sceneConfigPath.isEmpty,
+           FileManager.default.fileExists(atPath: sceneConfigPath)
+        {
+            return sceneConfigPath
+        }
+
         if let selected = configManager.selectedConfig {
             let selectedPath = self.syncSelectedConfigSelection(selected)
             self.syncConfigDisplayState()
@@ -80,16 +88,9 @@ extension AppState {
         }
     }
 
-    func persistEditableSettingsSnapshot() {
-        guard !suppressSettingsPersistence else { return }
-        let snapshot = currentEditableSettingsSnapshot()
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        defaults.set(data, forKey: editableSettingsSnapshotKey)
-    }
-
-    func loadPersistedEditableSettingsSnapshot() -> EditableSettingsSnapshot? {
-        guard let data = defaults.data(forKey: editableSettingsSnapshotKey) else { return nil }
-        return try? JSONDecoder().decode(EditableSettingsSnapshot.self, from: data)
+    func clearLegacyTunPreferences() {
+        defaults.removeObject(forKey: legacyDesiredTunEnabledKey)
+        defaults.removeObject(forKey: legacyEditableSettingsSnapshotKey)
     }
 
     func loadPersistedUILanguage() -> AppLanguage {
