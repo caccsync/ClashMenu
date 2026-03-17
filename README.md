@@ -26,9 +26,9 @@
 <p align="center">
   <img src="./imgs/scene.png" alt="scene" width="150" align="top" />
   <img src="./imgs/start.png" alt="start" width="150" align="top" />
-  <img src="./imgs/mode.png" alt="mode" width="180" align="top" />
-  <img src="./imgs/config.png" alt="config" width="180" align="top" />
-  <img src="./imgs/setup.png" alt="setup" width="230" align="top" />
+  <img src="./imgs/mode.png" alt="mode" width="150" align="top" />
+  <img src="./imgs/config.png" alt="config" width="150" align="top" />
+  <img src="./imgs/setup.png" alt="setup" width="200" align="top" />
 </p>
 
 ---
