@@ -24,11 +24,13 @@
 </div>
 
 <p align="center">
-  <img src="./imgs/start.png" alt="start" width="160" align="top" />
-  <img src="./imgs/mode.png" alt="mode" width="200" align="top" />
-  <img src="./imgs/config.png" alt="config" width="210" align="top" />
-  <img src="./imgs/setup.png" alt="setup" width="250" align="top" />
+  <img src="./imgs/scene.png" alt="scene" width="150" align="top" />
+  <img src="./imgs/start.png" alt="start" width="150" align="top" />
+  <img src="./imgs/mode.png" alt="mode" width="180" align="top" />
+  <img src="./imgs/config.png" alt="config" width="180" align="top" />
+  <img src="./imgs/setup.png" alt="setup" width="230" align="top" />
 </p>
+
 ---
 
 ## 👋 项目简介
@@ -57,8 +59,61 @@ external-ui-url: "https://github.com/Zephyruso/zashboard/releases/latest/downloa
 ```
 ClashMenu没有打包任何Dashboard，所以配置文件中务必要写好external-ui-url，可任选自己喜欢的Dashboard。
 `控制面板`按钮会尝试打开 http://127.0.0.1:9090/ui ，如果定义了external-ui-name，网页上会出现一个目录需要二次点击。
+## 🔄 场景切换
+场景禁用时，可自行开关系统代理、启停内核、切换配置文件。场景自动/手动时，根据场景自动控制系统代理、启停内核等操作。
+### 场景配置文件参考
+```
+scenes:
+  - name: "在家"
+    description: "家庭网络，已经通过软路由实现代理"
+    triggers:
+      ssids: 
+        - "home_5G"
+        - "home_2.4G"
+        - "home_2.4G_iot"
+    system-proxy: false
+    action: "stop"
 
+  - name: "学校"
+    description: "学校网络"
+    triggers:
+      ssids:
+        - "school_wifi"
+    system-proxy: true
+    action: "start"
+    config:
+      base_file: "clash.yaml"
+      overrides:
+        allow-lan: false
+        hosts:
+          "abc.com": "123.123.123.123"
 
+  - name: "公网"
+    description: "公共网络，需要全程开启代理"
+    triggers:
+      ssids:
+        - "*" # 匹配所有SSID
+    system-proxy: true
+    action: "start"
+    config:
+      base_file: "clash.yaml"
+      overrides:
+        allow-lan: false
+        mode: "rule"
+```
+### 每种场景命中后，会执行Mixin策略，具体策略是：
+1. rules下的数组采用前插入
+2. rule-providers / proxy-providers：视为字典进行浅覆盖 (Shallow Update)。如果有同名 provider，新的覆盖旧的；如果有新 provide
+r，直接追加。
+3. 对于对于 proxies 和 proxy-groups，基于 name 主键的替换与追加策略
+4. 其它所有配置项全部采用浅覆盖，对于单个全局项如allow-lan直接覆盖，对于有嵌套项的全局项如dns，直接从根部全部覆盖，因此要求这
+些配置项必须写完整。
+
+## 🔄 省电策略
+断网、休眠自动停止内核，极为省电。
+<p>
+  <img src="./imgs/power_consumption.png" alt="power" width="550" align="top" />
+</p>
 ## ❓ 常见问题
 
 ### 1) macOS 提示“已损坏”或“无法验证开发者” 🔒
