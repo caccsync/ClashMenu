@@ -291,6 +291,7 @@ extension AppState {
                 await self.stopCore(trigger: .manual)
             }
             await self.syncSystemProxyForScene(enabled: false)
+            await self.syncSystemDNSForScene(serverAddresses: scene.systemDNS)
             self.desiredSystemProxyEnabled = false
             self.shouldAutoResumeManagedRuntime = false
             self.appendLog(level: "info", message: self.local("已应用场景：\(scene.name)，停止内核。", "Applied scene \(scene.name), stopped core."))
@@ -324,6 +325,7 @@ extension AppState {
 
             self.desiredSystemProxyEnabled = scene.systemProxyEnabled
             await self.syncSystemProxyForScene(enabled: scene.systemProxyEnabled)
+            await self.syncSystemDNSForScene(serverAddresses: scene.systemDNS)
             self.appendLog(level: "info", message: self.local("已应用场景：\(scene.name)。", "Applied scene \(scene.name)."))
         }
     }
@@ -347,6 +349,31 @@ extension AppState {
         } catch {
             self.appendLog(level: "error", message: self.tr("log.system_proxy.toggle_failed", self.systemProxyErrorMessage(error)))
             await self.refreshSystemProxyStatus()
+        }
+    }
+
+    private func syncSystemDNSForScene(serverAddresses: [String]) async {
+        do {
+            try await self.applySystemDNS(serverAddresses: serverAddresses)
+            if serverAddresses.isEmpty {
+                self.appendLog(
+                    level: "info",
+                    message: self.local(
+                        "已恢复系统自动 DNS。",
+                        "Restored automatic system DNS."))
+            } else {
+                self.appendLog(
+                    level: "info",
+                    message: self.local(
+                        "已应用系统 DNS：\(serverAddresses.joined(separator: ", "))。",
+                        "Applied system DNS: \(serverAddresses.joined(separator: ", "))."))
+            }
+        } catch {
+            self.appendLog(
+                level: "error",
+                message: self.local(
+                    "同步系统 DNS 失败：\(error.localizedDescription)",
+                    "Failed to sync system DNS: \(error.localizedDescription)"))
         }
     }
 

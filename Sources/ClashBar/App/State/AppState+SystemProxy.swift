@@ -14,6 +14,10 @@ extension AppState {
         try await systemProxyService.isSystemProxyEnabled()
     }
 
+    func applySystemDNS(serverAddresses: [String]) async throws {
+        try await systemProxyService.applySystemDNS(serverAddresses: serverAddresses)
+    }
+
     func isSystemProxyConfigured(host: String, ports: SystemProxyPorts) async throws -> Bool {
         try await systemProxyService.isSystemProxyConfigured(
             host: host,

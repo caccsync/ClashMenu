@@ -6,6 +6,7 @@ import SystemConfiguration
 private enum ProxyHelperError: LocalizedError {
     case invalidHost
     case invalidPort
+    case invalidDNSAddress
     case missingPreferences
     case missingCurrentSet
     case noEnabledNetworkServices
@@ -17,6 +18,8 @@ private enum ProxyHelperError: LocalizedError {
             "Invalid proxy host"
         case .invalidPort:
             "Invalid proxy port"
+        case .invalidDNSAddress:
+            "Invalid DNS server address"
         case .missingPreferences:
             "Unable to access system network preferences"
         case .missingCurrentSet:
@@ -51,6 +54,7 @@ private final class SystemProxyConfigurator {
             portKey: kSCPropNetProxiesSOCKSPort as String),
     ]
     private let exceptionsListKey = kSCPropNetProxiesExceptionsList as String
+    private let dnsServerAddressesKey = kSCPropNetDNSServerAddresses as String
 
     func setSystemProxy(
         host: String,
@@ -98,6 +102,34 @@ private final class SystemProxyConfigurator {
 
                 guard SCNetworkProtocolSetConfiguration(proxyProtocol, config as CFDictionary) else {
                     throw self.systemConfigurationError(action: "Clear proxy configuration")
+                }
+            }
+        }
+    }
+
+    func setSystemDNS(serverAddresses: [String]) throws {
+        let normalizedServers = try self.normalizedDNSServerAddresses(serverAddresses)
+
+        try self.withMutableDNSProtocols { protocols in
+            for dnsProtocol in protocols {
+                var config = self.configuration(for: dnsProtocol)
+                config[self.dnsServerAddressesKey] = normalizedServers
+
+                guard SCNetworkProtocolSetConfiguration(dnsProtocol, config as CFDictionary) else {
+                    throw self.systemConfigurationError(action: "Set DNS configuration")
+                }
+            }
+        }
+    }
+
+    func clearSystemDNS() throws {
+        try self.withMutableDNSProtocols { protocols in
+            for dnsProtocol in protocols {
+                var config = self.configuration(for: dnsProtocol)
+                config.removeValue(forKey: self.dnsServerAddressesKey)
+
+                guard SCNetworkProtocolSetConfiguration(dnsProtocol, config as CFDictionary) else {
+                    throw self.systemConfigurationError(action: "Clear DNS configuration")
                 }
             }
         }
@@ -223,6 +255,25 @@ private final class SystemProxyConfigurator {
         }
     }
 
+    private func withMutableDNSProtocols(_ update: ([SCNetworkProtocol]) throws -> Void) throws {
+        let preferences = try makePreferences()
+
+        guard SCPreferencesLock(preferences, true) else {
+            throw self.systemConfigurationError(action: "Lock system preferences")
+        }
+        defer { SCPreferencesUnlock(preferences) }
+
+        let protocols = try self.dnsProtocols(from: preferences)
+        try update(protocols)
+
+        guard SCPreferencesCommitChanges(preferences) else {
+            throw self.systemConfigurationError(action: "Commit DNS preferences")
+        }
+        guard SCPreferencesApplyChanges(preferences) else {
+            throw self.systemConfigurationError(action: "Apply DNS preferences")
+        }
+    }
+
     private func makePreferences() throws -> SCPreferences {
         guard let preferences = SCPreferencesCreate(nil, "com.clashmenu.helper" as CFString, nil) else {
             throw ProxyHelperError.missingPreferences
@@ -244,6 +295,29 @@ private final class SystemProxyConfigurator {
                 return nil
             }
             return SCNetworkServiceCopyProtocol(service, kSCNetworkProtocolTypeProxies)
+        }
+
+        guard !protocols.isEmpty else {
+            throw ProxyHelperError.noEnabledNetworkServices
+        }
+
+        return protocols
+    }
+
+    private func dnsProtocols(from preferences: SCPreferences) throws -> [SCNetworkProtocol] {
+        guard let currentSet = SCNetworkSetCopyCurrent(preferences) else {
+            throw ProxyHelperError.missingCurrentSet
+        }
+
+        guard let services = SCNetworkSetCopyServices(currentSet) as? [SCNetworkService] else {
+            throw ProxyHelperError.noEnabledNetworkServices
+        }
+
+        let protocols = services.compactMap { service -> SCNetworkProtocol? in
+            guard SCNetworkServiceGetEnabled(service) else {
+                return nil
+            }
+            return SCNetworkServiceCopyProtocol(service, kSCNetworkProtocolTypeDNS)
         }
 
         guard !protocols.isEmpty else {
@@ -318,6 +392,35 @@ private final class SystemProxyConfigurator {
             .filter { seen.insert($0.lowercased()).inserted }
     }
 
+    private func normalizedDNSServerAddresses(_ addresses: [String]) throws -> [String] {
+        var seen = Set<String>()
+        let normalized = addresses
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !normalized.isEmpty else {
+            throw ProxyHelperError.invalidDNSAddress
+        }
+
+        for address in normalized {
+            guard self.isValidIPAddress(address) else {
+                throw ProxyHelperError.invalidDNSAddress
+            }
+        }
+
+        return normalized.filter { seen.insert($0.lowercased()).inserted }
+    }
+
+    private func isValidIPAddress(_ value: String) -> Bool {
+        var ipv4 = in_addr()
+        if value.withCString({ inet_pton(AF_INET, $0, &ipv4) }) == 1 {
+            return true
+        }
+
+        var ipv6 = in6_addr()
+        return value.withCString { inet_pton(AF_INET6, $0, &ipv6) } == 1
+    }
+
     private func bypassHostsMatchExpectedState(config: [String: Any], expectedBypassHosts: [String]) -> Bool {
         let currentHosts = self.normalizedBypassHosts(config[self.exceptionsListKey] as? [String] ?? [])
         return currentHosts.map { $0.lowercased() } == expectedBypassHosts.map { $0.lowercased() }
@@ -370,6 +473,24 @@ private final class ProxyHelperService: NSObject, ProxyHelperProtocol {
     func clearSystemProxy(completion: @escaping (Bool, String?) -> Void) {
         do {
             try self.configurator.clearSystemProxy()
+            completion(true, nil)
+        } catch {
+            completion(false, error.localizedDescription)
+        }
+    }
+
+    func setSystemDNS(serverAddresses: [String], completion: @escaping (Bool, String?) -> Void) {
+        do {
+            try self.configurator.setSystemDNS(serverAddresses: serverAddresses)
+            completion(true, nil)
+        } catch {
+            completion(false, error.localizedDescription)
+        }
+    }
+
+    func clearSystemDNS(completion: @escaping (Bool, String?) -> Void) {
+        do {
+            try self.configurator.clearSystemDNS()
             completion(true, nil)
         } catch {
             completion(false, error.localizedDescription)
@@ -489,6 +610,7 @@ private final class ProxyHelperListenerDelegate: NSObject, NSXPCListenerDelegate
     private let service = ProxyHelperService()
     private let validator = XPCClientValidator()
     private let allowedBypassHostClasses = NSSet(array: [NSArray.self, NSString.self]) as? Set<AnyHashable> ?? []
+    private let allowedDNSServerClasses = NSSet(array: [NSArray.self, NSString.self]) as? Set<AnyHashable> ?? []
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
         guard self.validator.isValid(connection: newConnection) else {
@@ -513,6 +635,11 @@ private final class ProxyHelperListenerDelegate: NSObject, NSXPCListenerDelegate
             for: #selector(ProxyHelperProtocol.isSystemProxyConfigured(
                 host:httpPort:httpsPort:socksPort:bypassHosts:completion:)),
             argumentIndex: 4,
+            ofReply: false)
+        interface.setClasses(
+            self.allowedDNSServerClasses,
+            for: #selector(ProxyHelperProtocol.setSystemDNS(serverAddresses:completion:)),
+            argumentIndex: 0,
             ofReply: false)
         return interface
     }

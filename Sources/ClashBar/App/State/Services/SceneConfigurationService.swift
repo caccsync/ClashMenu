@@ -19,6 +19,7 @@ struct SceneDefinition: Equatable {
     let description: String
     let triggers: Triggers
     let systemProxyEnabled: Bool
+    let systemDNS: [String]
     let action: SceneAction
     let config: SceneConfig?
 
@@ -112,6 +113,7 @@ struct SceneConfigurationService {
         }
 
         let systemProxyEnabled = (dict["system-proxy"] as? Bool) ?? false
+        let systemDNS = try self.parseSystemDNS(dict["system-dns"], index: index)
         guard let actionRaw = (dict["action"] as? String)?.lowercased(),
               let action = SceneAction(rawValue: actionRaw)
         else {
@@ -139,8 +141,21 @@ struct SceneConfigurationService {
             description: description,
             triggers: .init(ssids: ssids),
             systemProxyEnabled: systemProxyEnabled,
+            systemDNS: systemDNS,
             action: action,
             config: config)
+    }
+
+    private func parseSystemDNS(_ value: Any?, index: Int) throws -> [String] {
+        guard let value else { return [] }
+        guard let rawServers = value as? [String] else {
+            throw SceneConfigurationError.invalidScene(index: index, reason: "system-dns must be a string array")
+        }
+
+        var seen = Set<String>()
+        return rawServers.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
     }
 
     private func mergeRootConfig(base: [String: Any], overrides: [String: Any]) throws -> [String: Any] {

@@ -94,6 +94,19 @@ struct SystemProxyService: Sendable {
         }
     }
 
+    func applySystemDNS(serverAddresses: [String]) async throws {
+        if serverAddresses.isEmpty {
+            try await self.invokeMutationWithRecovery { helper, completion in
+                helper.clearSystemDNS(completion: completion)
+            }
+            return
+        }
+
+        try await self.invokeMutationWithRecovery { helper, completion in
+            helper.setSystemDNS(serverAddresses: serverAddresses, completion: completion)
+        }
+    }
+
     func isSystemProxyEnabled() async throws -> Bool {
         let daemonService = self.helperService()
         guard daemonService.status == .enabled else {
@@ -415,6 +428,7 @@ struct SystemProxyService: Sendable {
 
     private func makeRemoteInterface() -> NSXPCInterface {
         let allowedBypassHostClasses = NSSet(array: [NSArray.self, NSString.self]) as? Set<AnyHashable> ?? []
+        let allowedDNSServerClasses = NSSet(array: [NSArray.self, NSString.self]) as? Set<AnyHashable> ?? []
         let interface = NSXPCInterface(with: ProxyHelperProtocol.self)
         interface.setClasses(
             allowedBypassHostClasses,
@@ -427,6 +441,11 @@ struct SystemProxyService: Sendable {
             for: #selector(ProxyHelperProtocol.isSystemProxyConfigured(
                 host:httpPort:httpsPort:socksPort:bypassHosts:completion:)),
             argumentIndex: 4,
+            ofReply: false)
+        interface.setClasses(
+            allowedDNSServerClasses,
+            for: #selector(ProxyHelperProtocol.setSystemDNS(serverAddresses:completion:)),
+            argumentIndex: 0,
             ofReply: false)
         return interface
     }
